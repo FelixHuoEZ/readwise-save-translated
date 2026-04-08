@@ -1,0 +1,8 @@
+.DS_Store
+node_modules/
+logs/
+.tmp-chrome-profile/
+.tmp-chrome-profile-*/
+.tmp-chrome-profile-debug/
+.tmp-chrome-profile-fixed/
+config.local.json

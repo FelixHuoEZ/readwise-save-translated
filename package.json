@@ -1,0 +1,10 @@
+{
+  "name": "readwise-save-translated",
+  "private": true,
+  "scripts": {
+    "test:e2e-save": "node scripts/e2e-save-test.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.59.1"
+  }
+}

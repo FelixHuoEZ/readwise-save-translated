@@ -1,0 +1,472 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Readwise Save Details</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f0fdfa;
+        --panel: rgba(255, 255, 255, 0.9);
+        --panel-strong: #ffffff;
+        --line: rgba(19, 78, 74, 0.12);
+        --line-strong: rgba(19, 78, 74, 0.18);
+        --text: #134e4a;
+        --muted: #4b6b67;
+        --muted-strong: #2f5a54;
+        --primary: #0d9488;
+        --primary-deep: #0f766e;
+        --fallback: #f97316;
+        --fallback-deep: #ea580c;
+        --success-bg: #ecfdf5;
+        --success-text: #166534;
+        --warn-bg: #fff7ed;
+        --warn-text: #b45309;
+        --error-bg: #fef2f2;
+        --error-text: #b91c1c;
+        --shadow: 0 18px 45px rgba(13, 148, 136, 0.12);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        width: 392px;
+        margin: 0;
+        color: var(--text);
+        font-family: "Avenir Next", "Segoe UI", sans-serif;
+        user-select: text;
+        -webkit-user-select: text;
+        background:
+          radial-gradient(circle at top left, rgba(20, 184, 166, 0.18), transparent 32%),
+          radial-gradient(circle at 88% 0%, rgba(249, 115, 22, 0.14), transparent 22%),
+          linear-gradient(180deg, #f7fffe 0%, var(--bg) 100%);
+      }
+
+      main {
+        padding: 14px;
+      }
+
+      .shell {
+        display: grid;
+        gap: 10px;
+      }
+
+      .panel {
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: var(--panel);
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(10px);
+      }
+
+      .topbar {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 14px 14px 6px;
+      }
+
+      .eyebrow,
+      .section-label {
+        margin: 0;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      .app-title {
+        margin: 4px 0 0;
+        font-family: "Iowan Old Style", "Palatino Linotype", serif;
+        font-size: 28px;
+        line-height: 0.95;
+        color: #103a37;
+      }
+
+      .top-note {
+        margin: 8px 14px 0;
+        padding: 0 0 14px;
+        font-size: 13px;
+        line-height: 1.45;
+        color: var(--muted-strong);
+      }
+
+      .current-panel,
+      .actions-panel,
+      .result-panel {
+        padding: 14px;
+      }
+
+      .current-head,
+      .result-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .page-title {
+        margin: 10px 0 0;
+        font-family: "Iowan Old Style", "Palatino Linotype", serif;
+        font-size: 24px;
+        line-height: 1.08;
+        color: #102f2d;
+      }
+
+      .page-url {
+        margin: 10px 0 0;
+        font-size: 12px;
+        line-height: 1.5;
+        color: var(--muted);
+        word-break: break-word;
+      }
+
+      .pill-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 12px;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        min-height: 28px;
+        padding: 0 10px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.92);
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .pill[data-state="ok"] {
+        color: var(--success-text);
+        border-color: rgba(22, 101, 52, 0.18);
+        background: var(--success-bg);
+      }
+
+      .pill[data-state="warn"] {
+        color: var(--warn-text);
+        border-color: rgba(180, 83, 9, 0.18);
+        background: var(--warn-bg);
+      }
+
+      .pill[data-state="error"] {
+        color: var(--error-text);
+        border-color: rgba(185, 28, 28, 0.18);
+        background: var(--error-bg);
+      }
+
+      .strategy-note {
+        margin: 10px 0 0;
+        font-size: 12px;
+        line-height: 1.45;
+        color: var(--muted);
+      }
+
+      .action-copy {
+        display: grid;
+        gap: 6px;
+      }
+
+      .action-title {
+        margin: 0;
+        font-family: "Iowan Old Style", "Palatino Linotype", serif;
+        font-size: 20px;
+        line-height: 1.1;
+        color: #103a37;
+      }
+
+      .action-subtitle {
+        margin: 0;
+        font-size: 13px;
+        line-height: 1.5;
+        color: var(--muted);
+      }
+
+      .action-grid {
+        display: grid;
+        gap: 10px;
+        margin-top: 14px;
+      }
+
+      button {
+        border: 0;
+        border-radius: 16px;
+        font: inherit;
+        cursor: pointer;
+        user-select: none;
+        -webkit-user-select: none;
+        transition:
+          transform 120ms ease,
+          box-shadow 180ms ease,
+          border-color 180ms ease,
+          background-color 180ms ease;
+      }
+
+      button:hover:not(:disabled) {
+        transform: translateY(-1px);
+      }
+
+      button:focus-visible {
+        outline: 2px solid rgba(15, 118, 110, 0.45);
+        outline-offset: 2px;
+      }
+
+      .action-button {
+        display: grid;
+        gap: 4px;
+        width: 100%;
+        padding: 14px;
+        text-align: left;
+        border: 1px solid transparent;
+        box-shadow: 0 8px 20px rgba(15, 118, 110, 0.08);
+      }
+
+      .action-button.primary {
+        color: #f8fffe;
+        background: linear-gradient(135deg, var(--primary), var(--primary-deep));
+      }
+
+      .action-button.fallback {
+        color: #6a3412;
+        background: linear-gradient(135deg, #fff4eb, #ffedd5);
+        border-color: rgba(249, 115, 22, 0.16);
+      }
+
+      .button-kicker {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        opacity: 0.88;
+      }
+
+      .button-title {
+        font-size: 17px;
+        font-weight: 700;
+        line-height: 1.1;
+      }
+
+      .button-note {
+        font-size: 12px;
+        line-height: 1.45;
+        opacity: 0.92;
+      }
+
+      .inline-actions {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 10px;
+      }
+
+      .ghost-button {
+        padding: 9px 12px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.76);
+        color: var(--muted-strong);
+      }
+
+      .ghost-button.small {
+        padding: 8px 10px;
+        border-radius: 12px;
+        font-size: 12px;
+      }
+
+      .result-summary {
+        display: grid;
+        gap: 10px;
+      }
+
+      .status-line {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .status-badge,
+      .scope-badge {
+        display: inline-flex;
+        align-items: center;
+        min-height: 28px;
+        padding: 0 10px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .status-badge.success {
+        background: var(--success-bg);
+        color: var(--success-text);
+      }
+
+      .status-badge.error {
+        background: var(--error-bg);
+        color: var(--error-text);
+      }
+
+      .scope-badge {
+        background: rgba(13, 148, 136, 0.1);
+        color: var(--primary-deep);
+      }
+
+      .result-link {
+        color: var(--primary-deep);
+        font-size: 13px;
+        font-weight: 600;
+        text-decoration: none;
+        word-break: break-word;
+      }
+
+      .result-link:hover {
+        text-decoration: underline;
+      }
+
+      .result-meta {
+        font-size: 12px;
+        line-height: 1.5;
+        color: var(--muted);
+      }
+
+      details {
+        border-top: 1px solid var(--line);
+        padding-top: 10px;
+      }
+
+      summary {
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--muted-strong);
+        list-style: none;
+      }
+
+      summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .result-grid {
+        display: grid;
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      .result-row {
+        display: grid;
+        gap: 3px;
+      }
+
+      .result-key {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      .result-value,
+      .result-value a {
+        color: var(--text);
+        font-size: 12px;
+        line-height: 1.45;
+        word-break: break-word;
+      }
+
+      .debug-block {
+        margin: 10px 0 0;
+        padding: 10px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.82);
+        color: #1f3d3a;
+        font: 11px/1.5 "SFMono-Regular", "Menlo", monospace;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .empty {
+        margin: 0;
+        font-size: 13px;
+        line-height: 1.45;
+        color: var(--muted);
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        button {
+          transition: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="shell">
+        <section class="panel">
+          <div class="topbar">
+            <div>
+              <p class="eyebrow">Readwise Snapshot</p>
+              <h1 class="app-title">Save Details</h1>
+            </div>
+            <button class="ghost-button small" id="settings-button" type="button">Settings</button>
+          </div>
+          <p class="top-note">
+            Left click the extension icon to save article-only immediately. Use this page for fallback saves, diagnostics, and troubleshooting.
+          </p>
+        </section>
+
+        <section class="panel current-panel">
+          <div class="current-head">
+            <p class="section-label">Current Page</p>
+          </div>
+          <h2 class="page-title" id="page-title">Loading…</h2>
+          <p class="page-url" id="page-url"></p>
+          <div class="pill-row">
+            <span class="pill" id="token-pill">Token unknown</span>
+            <span class="pill" id="page-pill">Page unknown</span>
+            <span class="pill" id="mode-pill">Strategy unknown</span>
+          </div>
+          <p class="strategy-note" id="save-hint"></p>
+        </section>
+
+        <section class="panel actions-panel">
+          <div class="action-copy">
+            <p class="section-label">Save Mode</p>
+            <p class="action-title">Article first. Whole page only when needed.</p>
+            <p class="action-subtitle">
+              Article-only is just a lighter HTML scope. On sites like Substack it can still look very similar to whole-page.
+            </p>
+          </div>
+          <div class="action-grid">
+            <button class="action-button primary" id="article-save-button" type="button">
+              <span class="button-kicker">Preferred</span>
+              <span class="button-title">Save article-only</span>
+              <span class="button-note">Upload the existing article HTML and let Readwise clean it.</span>
+            </button>
+            <button class="action-button fallback" id="whole-page-button" type="button">
+              <span class="button-kicker">Fallback</span>
+              <span class="button-title">Save whole page</span>
+              <span class="button-note">Use the full rendered page when article scope is missing or no cleaner.</span>
+            </button>
+          </div>
+        </section>
+
+        <section class="panel result-panel">
+          <div class="result-head">
+            <p class="section-label">Last Save</p>
+            <button class="ghost-button small" id="copy-debug-button" type="button">Copy debug</button>
+          </div>
+          <div id="last-save"></div>
+        </section>
+      </div>
+    </main>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

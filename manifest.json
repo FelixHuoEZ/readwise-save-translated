@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Readwise Save Translated",
+  "version": "0.1.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwKUiYyI7r+lrIhX/mFepLlkgSwaVmtPYgvClGNAeokNxPX7yr1mOgPqcRYo8xG9f9XasUWzXHUPPWL63+uBa20i1/AY5Wlb5K79gh9eM/AotG2eLWgfNX0ulyl0b+fQM4QUyf11DqrLMm3cdWWOeoPVxX1qeIBLEU3J0M1hMZM8iU9u3WihOSPiqRevB+DUr6BRYS7ZHDk5k7y78tzFmjjSYUZ1zK8DI+UrJBwrEc2L7FbHvz9IVZMc19p4EIg4hWBNfMl9WquLGAS9rv1SxyTWei5S9WPniGV+CpjERra4chbFBwn8qwy+1rv344hY6q4K/Tn6HxCNYNRVT8CkuSQIDAQAB",
+  "description": "Save the current translated page HTML to Readwise Reader without custom parsing.",
+  "permissions": ["activeTab", "storage", "scripting", "tabs", "contextMenus"],
+  "host_permissions": [
+    "https://readwise.io/*",
+    "https://*/*",
+    "http://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "options_page": "options.html",
+  "action": {
+    "default_title": "Left click: save article-only. Right click: open details."
+  }
+}
