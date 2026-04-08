@@ -141,6 +141,18 @@ function renderLastSave(lastSaveResult) {
     rows.push(renderRow("Reader source URL", escapeHtml(lastSaveResult.readerSourceUrl)));
   }
 
+  if (lastSaveResult.pageTitle) {
+    rows.push(renderRow("Resolved title", escapeHtml(lastSaveResult.pageTitle)));
+  }
+
+  if (lastSaveResult.originalTitle) {
+    rows.push(renderRow("Original title", escapeHtml(lastSaveResult.originalTitle)));
+  }
+
+  if (lastSaveResult.translatedTitle) {
+    rows.push(renderRow("Translated title", escapeHtml(lastSaveResult.translatedTitle)));
+  }
+
   if (lastSaveResult.author) {
     rows.push(renderRow("Author", escapeHtml(lastSaveResult.author)));
   }
@@ -247,6 +259,9 @@ function buildDebugText(lastSaveResult) {
     `originalUrl: ${lastSaveResult.originalUrl || ""}`,
     `readerDocumentUrl: ${lastSaveResult.readerDocumentUrl || ""}`,
     `readerSourceUrl: ${lastSaveResult.readerSourceUrl || ""}`,
+    `pageTitle: ${lastSaveResult.pageTitle || ""}`,
+    `originalTitle: ${lastSaveResult.originalTitle || ""}`,
+    `translatedTitle: ${lastSaveResult.translatedTitle || ""}`,
     `author: ${lastSaveResult.author || ""}`,
     `publishedDate: ${lastSaveResult.publishedDate || ""}`,
     `captureMode: ${lastSaveResult.captureMode || ""}`,

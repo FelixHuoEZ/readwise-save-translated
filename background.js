@@ -229,6 +229,8 @@ async function performSave(tab, overrides = {}) {
       const resultSummary = {
         savedAt: new Date().toISOString(),
         pageTitle: snapshot.title,
+        originalTitle: snapshot.originalTitle,
+        translatedTitle: snapshot.translatedTitle,
         originalUrl: snapshot.url,
         readerSourceUrl: saveResult.sourceUrl,
         readerDocumentUrl: saveResult.body?.url ?? null,
@@ -262,6 +264,8 @@ async function performSave(tab, overrides = {}) {
       readerSourceUrl: null,
       readerDocumentUrl: null,
       readerDocumentId: null,
+      originalTitle: null,
+      translatedTitle: null,
       author: null,
       publishedDate: null,
       captureMode: null,
@@ -312,12 +316,15 @@ function capturePageSnapshot() {
 
     const filteredText = contentBlocks.map((block) => block.text).join("\n\n");
     const metadata = extractMetadata();
+    const titleInfo = extractTitleInfo(articleRoot, contentRoot);
 
     return {
-      title: document.title,
+      title: titleInfo.resolvedTitle,
+      originalTitle: titleInfo.originalTitle,
+      translatedTitle: titleInfo.translatedTitle,
       url: window.location.href,
       html: document.documentElement.outerHTML,
-      articleHtml: articleRoot ? buildScopedHtml(articleRoot.outerHTML, metadata) : null,
+      articleHtml: articleRoot ? buildScopedHtml(articleRoot.outerHTML, metadata, titleInfo.resolvedTitle) : null,
       visibleText,
       filteredText,
       detectedCjkCount,
@@ -657,14 +664,16 @@ function capturePageSnapshot() {
     return parts.join("");
   }
 
-  function buildScopedHtml(contentHtml, metadata = {}) {
+  function buildScopedHtml(contentHtml, metadata = {}, pageTitle = document.title) {
     return [
       "<!doctype html>",
       "<html>",
       "<head>",
       '  <meta charset="utf-8">',
-      `  <title>${escapeHtml(document.title)}</title>`,
+      `  <title>${escapeHtml(pageTitle)}</title>`,
       `  <base href="${escapeHtml(window.location.href)}">`,
+      `  <meta property="og:title" content="${escapeHtml(pageTitle)}">`,
+      `  <meta name="twitter:title" content="${escapeHtml(pageTitle)}">`,
       metadata.author ? `  <meta name="author" content="${escapeHtml(metadata.author)}">` : "",
       metadata.publishedDate ? `  <meta property="article:published_time" content="${escapeHtml(metadata.publishedDate)}">` : "",
       "</head>",
@@ -682,6 +691,137 @@ function capturePageSnapshot() {
       .replaceAll(">", "&gt;")
       .replaceAll('"', "&quot;")
       .replaceAll("'", "&#39;");
+  }
+
+  function extractTitleInfo(articleRoot, contentRoot) {
+    const heading = pickPrimaryHeading(articleRoot, contentRoot);
+    const originalTitle = resolveOriginalTitle(heading);
+    const translatedTitle = findTranslatedTitleNearHeading(heading, articleRoot ?? contentRoot ?? document.body);
+
+    return {
+      originalTitle,
+      translatedTitle,
+      resolvedTitle: translatedTitle || originalTitle || document.title
+    };
+  }
+
+  function pickPrimaryHeading(articleRoot, contentRoot) {
+    const roots = [articleRoot, contentRoot, document.body].filter(Boolean);
+
+    for (const root of roots) {
+      const headings = Array.from(root.querySelectorAll("h1")).filter(isProbablyVisible);
+      if (headings.length > 0) {
+        return headings
+          .map((element) => ({
+            element,
+            score: countCjk(normalizeBlockText(element.innerText ?? "")) * 20
+              + normalizeBlockText(element.innerText ?? "").length
+          }))
+          .sort((left, right) => right.score - left.score)[0].element;
+      }
+    }
+
+    return document.querySelector("h1");
+  }
+
+  function resolveOriginalTitle(heading) {
+    const headingText = normalizeHeadingText(heading?.innerText ?? "");
+    if (headingText) {
+      return headingText;
+    }
+
+    const metaTitle = normalizeHeadingText(
+      getMetaContent([
+        'meta[property="og:title"]',
+        'meta[name="twitter:title"]'
+      ])
+    );
+
+    return metaTitle || normalizeHeadingText(document.title);
+  }
+
+  function findTranslatedTitleNearHeading(heading, root) {
+    if (!(heading instanceof Element)) {
+      return "";
+    }
+
+    const headingRect = heading.getBoundingClientRect();
+    const inlineCandidate = pickTranslatedLine(collectCandidateLines(heading), headingRect.bottom, 0);
+    if (inlineCandidate) {
+      return inlineCandidate;
+    }
+
+    let sibling = heading.nextElementSibling;
+    let siblingChecks = 0;
+    while (sibling && siblingChecks < 6) {
+      siblingChecks += 1;
+      if (isProbablyVisible(sibling)) {
+        const siblingRect = sibling.getBoundingClientRect();
+        const distance = siblingRect.top - headingRect.bottom;
+        if (distance <= 220) {
+          const candidate = pickTranslatedLine(
+            collectCandidateLines(sibling),
+            siblingRect.top,
+            Math.abs((siblingRect.left || 0) - (headingRect.left || 0))
+          );
+          if (candidate) {
+            return candidate;
+          }
+        }
+      }
+
+      sibling = sibling.nextElementSibling;
+    }
+
+    const rootCandidates = Array.from(root?.querySelectorAll?.("p, div, h2, span") ?? [])
+      .filter(isProbablyVisible)
+      .map((element) => {
+        const rect = element.getBoundingClientRect();
+        return {
+          lines: collectCandidateLines(element),
+          distance: rect.top - headingRect.bottom,
+          horizontalOffset: Math.abs((rect.left || 0) - (headingRect.left || 0))
+        };
+      })
+      .filter((candidate) => candidate.distance >= -8 && candidate.distance <= 220)
+      .sort((left, right) => left.distance - right.distance);
+
+    for (const candidate of rootCandidates) {
+      const resolved = pickTranslatedLine(candidate.lines, candidate.distance, candidate.horizontalOffset);
+      if (resolved) {
+        return resolved;
+      }
+    }
+
+    return "";
+  }
+
+  function collectCandidateLines(element) {
+    return normalizeBlockText(element?.innerText ?? "")
+      .split(/\n+/)
+      .map(normalizeHeadingText)
+      .filter(Boolean);
+  }
+
+  function pickTranslatedLine(lines, verticalDistance, horizontalOffset) {
+    const scored = lines
+      .filter((line) => countCjk(line) > 0)
+      .filter((line) => line.length >= 4 && line.length <= 80)
+      .filter((line) => !isNoiseLine(line))
+      .map((line) => ({
+        line,
+        score: (countCjk(line) * 14)
+          - Math.abs(line.length - 18)
+          - Math.max(0, verticalDistance) * 0.2
+          - horizontalOffset * 0.05
+      }))
+      .sort((left, right) => right.score - left.score);
+
+    return scored[0]?.line ?? "";
+  }
+
+  function normalizeHeadingText(text) {
+    return normalizeLineText(String(text || "").replace(/\s*[|·•-]\s*[^|·•-]+$/, ""));
   }
 
   function extractMetadata() {
@@ -885,9 +1025,10 @@ function buildSavePayload(snapshot, settings, sourceUrl = snapshot.url) {
   const author = snapshot.metadata?.author || deriveAuthorName(originalUrl);
   const publishedDate = snapshot.metadata?.publishedDate || "";
   const capturedAt = new Date().toISOString();
-  const html = captureMode === "html"
+  const rawHtml = captureMode === "html"
     ? selectHtmlSnapshot(snapshot, settings.htmlScope)
     : buildTextSnapshotHtml(snapshot.title, snapshot.contentBlocks, snapshot.filteredText || snapshot.visibleText);
+  const html = rewriteHtmlTitle(rawHtml, snapshot.title);
   const shouldCleanHtml = captureMode === "html" || settings.forceReaderClean === true;
 
   const payload = {
@@ -900,6 +1041,9 @@ function buildSavePayload(snapshot, settings, sourceUrl = snapshot.url) {
     saved_using: "readwise-save-translated-extension",
     notes: [
       "Saved as a translated snapshot from Chrome.",
+      `Resolved title: ${snapshot.title || "not found"}`,
+      `Original title: ${snapshot.originalTitle || "not found"}`,
+      `Translated title: ${snapshot.translatedTitle || "not found"}`,
       `Capture mode: ${captureMode}`,
       `HTML scope: ${settings.htmlScope}`,
       `Readwise clean HTML: ${shouldCleanHtml ? "enabled" : "disabled"}`,
@@ -1018,6 +1162,55 @@ function selectHtmlSnapshot(snapshot, htmlScope) {
   }
 
   return snapshot.html;
+}
+
+function rewriteHtmlTitle(html, title) {
+  if (!html || !title) {
+    return html;
+  }
+
+  const escapedTitle = escapeHtml(title);
+  let updated = String(html);
+  let titleApplied = false;
+
+  if (/<title[\s>]/i.test(updated)) {
+    updated = updated.replace(/<title\b[^>]*>[\s\S]*?<\/title>/i, `<title>${escapedTitle}</title>`);
+    titleApplied = true;
+  }
+
+  const replaceMeta = (pattern, replacement) => {
+    if (pattern.test(updated)) {
+      updated = updated.replace(pattern, replacement);
+      return true;
+    }
+
+    return false;
+  };
+
+  const ogApplied = replaceMeta(
+    /<meta\b[^>]*property=["']og:title["'][^>]*content=["'][^"']*["'][^>]*>/i,
+    `<meta property="og:title" content="${escapedTitle}">`
+  );
+  const twitterApplied = replaceMeta(
+    /<meta\b[^>]*name=["']twitter:title["'][^>]*content=["'][^"']*["'][^>]*>/i,
+    `<meta name="twitter:title" content="${escapedTitle}">`
+  );
+
+  if (/<\/head>/i.test(updated)) {
+    const injected = [
+      titleApplied ? "" : `<title>${escapedTitle}</title>`,
+      ogApplied ? "" : `<meta property="og:title" content="${escapedTitle}">`,
+      twitterApplied ? "" : `<meta name="twitter:title" content="${escapedTitle}">`
+    ]
+      .filter(Boolean)
+      .join("");
+
+    if (injected) {
+      updated = updated.replace(/<\/head>/i, `${injected}</head>`);
+    }
+  }
+
+  return updated;
 }
 
 function buildTextSnapshotHtml(title, contentBlocks, fallbackText) {

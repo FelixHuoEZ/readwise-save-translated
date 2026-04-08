@@ -22,6 +22,7 @@ Build a Chrome extension that saves the translated state of the current web page
 - Expose a right-click action menu entry that opens a more detailed extension page.
 - Trigger fallback saves and diagnostics from the detailed page instead of the primary action click.
 - Capture the current page as an HTML snapshot after translation has been applied.
+- Prefer a translated visible headline for the saved document title when the page shows one near the main article title.
 - Provide an `article-only` HTML save path as the preferred button behavior.
 - Provide a whole-page raw HTML save path as the explicit fallback button behavior.
 - Use `should_clean_html: true` for both HTML save paths.
@@ -32,7 +33,7 @@ Build a Chrome extension that saves the translated state of the current web page
 - Do not apply any default tags unless the user explicitly configures them.
 - Add a top-level note that records the original URL and capture time.
 - Show clear success or failure feedback after a left-click save attempt.
-- Use the action icon as the primary save feedback, with a success check state and a failure state.
+- Use the action icon as the primary save feedback, preserving the base icon and overlaying success or failure state.
 - Prefer an in-page toast over operating-system-level notifications for save feedback.
 - Show the current page title and URL inside the detailed page.
 - Show whether a Readwise token is configured.
