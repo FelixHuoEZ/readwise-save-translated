@@ -49,7 +49,7 @@ async function loadSettings() {
     ? settings.defaultTags
     : Array.isArray(fileSettings.defaultTags)
       ? fileSettings.defaultTags
-      : ["translated", "snapshot", "lang:zh", "chrome-extension"];
+      : [];
   const resolvedCaptureMode = settings.captureMode === "html" || settings.captureMode === "text"
     ? settings.captureMode
     : fileSettings.captureMode === "html" || fileSettings.captureMode === "text"

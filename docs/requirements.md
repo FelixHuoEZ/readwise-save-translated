@@ -29,8 +29,9 @@ Build a Chrome extension that saves the translated state of the current web page
 - Use the original page URL as the initial source URL strategy unless real-world testing proves it collides with an existing Reader document.
 - If Readwise reports that the original URL already exists, retry with a fragment-based URL such as `#rw-translated=<timestamp>` so the saved URL still opens the original page.
 - Use a `[ZH] ` title prefix by default.
-- Apply default tags: `translated`, `snapshot`, `lang:zh`, `chrome-extension`.
+- Do not apply any default tags unless the user explicitly configures them.
 - Add a top-level note that records the original URL and capture time.
+- Show clear success or failure feedback after a left-click save attempt.
 - Show the current page title and URL inside the detailed page.
 - Show whether a Readwise token is configured.
 - Show which capture mode is active.

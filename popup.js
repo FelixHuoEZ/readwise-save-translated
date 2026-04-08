@@ -141,6 +141,14 @@ function renderLastSave(lastSaveResult) {
     rows.push(renderRow("Reader source URL", escapeHtml(lastSaveResult.readerSourceUrl)));
   }
 
+  if (lastSaveResult.author) {
+    rows.push(renderRow("Author", escapeHtml(lastSaveResult.author)));
+  }
+
+  if (lastSaveResult.publishedDate) {
+    rows.push(renderRow("Published", escapeHtml(formatTime(lastSaveResult.publishedDate))));
+  }
+
   if (lastSaveResult.captureMode) {
     rows.push(renderRow("Capture mode", escapeHtml(lastSaveResult.captureMode)));
   }
@@ -239,6 +247,8 @@ function buildDebugText(lastSaveResult) {
     `originalUrl: ${lastSaveResult.originalUrl || ""}`,
     `readerDocumentUrl: ${lastSaveResult.readerDocumentUrl || ""}`,
     `readerSourceUrl: ${lastSaveResult.readerSourceUrl || ""}`,
+    `author: ${lastSaveResult.author || ""}`,
+    `publishedDate: ${lastSaveResult.publishedDate || ""}`,
     `captureMode: ${lastSaveResult.captureMode || ""}`,
     `htmlScope: ${lastSaveResult.htmlScope || ""}`,
     `readerCleanedHtml: ${String(lastSaveResult.readerCleanedHtml)}`,

@@ -1,12 +1,14 @@
 const SAVE_ENDPOINT = "https://readwise.io/api/v3/save/";
 const FILE_CONFIG_PATH = "config.local.json";
 const DEFAULT_TITLE_PREFIX = "[ZH] ";
-const DEFAULT_TAGS = ["translated", "snapshot", "lang:zh", "chrome-extension"];
+const LEGACY_DEFAULT_TAGS = ["translated", "snapshot", "lang:zh", "chrome-extension"];
+const DEFAULT_TAGS = [];
 const DEFAULT_CAPTURE_MODE = "html";
 const DEFAULT_HTML_SCOPE = "whole-page";
 const BADGE_RESET_DELAY_MS = 5000;
 const LAST_SAVE_RESULT_KEY = "lastSaveResult";
 const DETAILS_MENU_ID = "open-details";
+const NOTIFICATION_ICON_PATH = "assets/icon-128.png";
 
 chrome.runtime.onInstalled.addListener(async () => {
   const settings = await chrome.storage.local.get([
@@ -26,6 +28,10 @@ chrome.runtime.onInstalled.addListener(async () => {
     updates.defaultTags = DEFAULT_TAGS;
   }
 
+  if (areSameTags(normalizeTags(settings.defaultTags), LEGACY_DEFAULT_TAGS)) {
+    updates.defaultTags = DEFAULT_TAGS;
+  }
+
   if (!settings.captureMode) {
     updates.captureMode = DEFAULT_CAPTURE_MODE;
   }
@@ -39,6 +45,7 @@ chrome.runtime.onInstalled.addListener(async () => {
 
 chrome.runtime.onStartup.addListener(() => {
   void ensureContextMenus();
+  void migrateLegacyDefaultTags();
 });
 
 chrome.action.onClicked.addListener((tab) => {
@@ -117,6 +124,13 @@ async function ensureContextMenus() {
   });
 }
 
+async function migrateLegacyDefaultTags() {
+  const { defaultTags } = await chrome.storage.local.get(["defaultTags"]);
+  if (areSameTags(normalizeTags(defaultTags), LEGACY_DEFAULT_TAGS)) {
+    await chrome.storage.local.set({ defaultTags: DEFAULT_TAGS });
+  }
+}
+
 async function openDetailsPage(targetTabId = null) {
   const search = targetTabId ? `?tabId=${encodeURIComponent(String(targetTabId))}` : "";
   await chrome.tabs.create({
@@ -135,11 +149,6 @@ async function getTabIfExists(tabId) {
 async function handlePrimaryActionError(tab, error) {
   if (error?.message?.startsWith("Missing Readwise access token")) {
     await chrome.runtime.openOptionsPage();
-    return;
-  }
-
-  if (tab?.id) {
-    await openDetailsPage(tab.id);
   }
 }
 
@@ -199,6 +208,8 @@ async function performSave(tab, overrides = {}) {
         readerSourceUrl: saveResult.sourceUrl,
         readerDocumentUrl: saveResult.body?.url ?? null,
         readerDocumentId: saveResult.body?.id ?? null,
+        author: snapshot.metadata.author,
+        publishedDate: snapshot.metadata.publishedDate,
         captureMode: settings.captureMode,
         detectedCjkCount: snapshot.detectedCjkCount,
         previewText: (snapshot.filteredText || snapshot.visibleText).slice(0, 280),
@@ -214,6 +225,7 @@ async function performSave(tab, overrides = {}) {
 
       await chrome.storage.local.set({ [LAST_SAVE_RESULT_KEY]: resultSummary });
       await setBadge(tab.id, "OK", "#15803d");
+      await showActionNotification("Saved to Readwise", buildSuccessMessage(resultSummary));
       return resultSummary;
     });
   } catch (error) {
@@ -224,6 +236,8 @@ async function performSave(tab, overrides = {}) {
       readerSourceUrl: null,
       readerDocumentUrl: null,
       readerDocumentId: null,
+      author: null,
+      publishedDate: null,
       captureMode: null,
       detectedCjkCount: null,
       previewText: null,
@@ -244,6 +258,8 @@ async function performSave(tab, overrides = {}) {
     if (!error.message.startsWith("Missing Readwise access token")) {
       await setBadge(tab.id, "ERR", "#b91c1c");
     }
+
+    await showActionNotification("Readwise save failed", error.message);
 
     throw error;
   }
@@ -269,16 +285,18 @@ function capturePageSnapshot() {
     }
 
     const filteredText = contentBlocks.map((block) => block.text).join("\n\n");
+    const metadata = extractMetadata();
 
     return {
       title: document.title,
       url: window.location.href,
       html: document.documentElement.outerHTML,
-      articleHtml: articleRoot ? buildScopedHtml(articleRoot.outerHTML) : null,
+      articleHtml: articleRoot ? buildScopedHtml(articleRoot.outerHTML, metadata) : null,
       visibleText,
       filteredText,
       detectedCjkCount,
       contentBlocks,
+      metadata,
       contentRootTag: contentRoot?.tagName?.toLowerCase() ?? "body",
       contentRootSelector: describeElement(contentRoot),
       articleSelector: describeElement(articleRoot)
@@ -613,7 +631,7 @@ function capturePageSnapshot() {
     return parts.join("");
   }
 
-  function buildScopedHtml(contentHtml) {
+  function buildScopedHtml(contentHtml, metadata = {}) {
     return [
       "<!doctype html>",
       "<html>",
@@ -621,6 +639,8 @@ function capturePageSnapshot() {
       '  <meta charset="utf-8">',
       `  <title>${escapeHtml(document.title)}</title>`,
       `  <base href="${escapeHtml(window.location.href)}">`,
+      metadata.author ? `  <meta name="author" content="${escapeHtml(metadata.author)}">` : "",
+      metadata.publishedDate ? `  <meta property="article:published_time" content="${escapeHtml(metadata.publishedDate)}">` : "",
       "</head>",
       "<body>",
       contentHtml,
@@ -636,6 +656,175 @@ function capturePageSnapshot() {
       .replaceAll(">", "&gt;")
       .replaceAll('"', "&quot;")
       .replaceAll("'", "&#39;");
+  }
+
+  function extractMetadata() {
+    const structuredData = parseStructuredData();
+    const author = normalizeAuthorName(
+      getMetaContent([
+        'meta[name="author"]',
+        'meta[property="author"]',
+        'meta[property="article:author"]',
+        'meta[name="parsely-author"]'
+      ])
+        || extractAuthorFromStructuredData(structuredData)
+        || extractVisibleText([
+          '[itemprop="author"]',
+          '[rel="author"]',
+          '.byline-wrapper a',
+          '[class*="byline"] a',
+          '[class*="author"] a',
+          '[data-testid*="author"] a'
+        ])
+    );
+    const publishedDate = normalizePublishedDate(
+      getMetaContent([
+        'meta[property="article:published_time"]',
+        'meta[name="article:published_time"]',
+        'meta[name="pubdate"]',
+        'meta[name="publish-date"]',
+        'meta[name="parsely-pub-date"]',
+        'meta[itemprop="datePublished"]',
+        'meta[name="date"]'
+      ])
+        || extractPublishedDateFromStructuredData(structuredData)
+        || extractTimeElement()
+    );
+
+    return {
+      author,
+      publishedDate
+    };
+  }
+
+  function getMetaContent(selectors) {
+    for (const selector of selectors) {
+      const value = document.querySelector(selector)?.getAttribute("content")?.trim();
+      if (value) {
+        return value;
+      }
+    }
+
+    return "";
+  }
+
+  function extractVisibleText(selectors) {
+    for (const selector of selectors) {
+      const elements = Array.from(document.querySelectorAll(selector)).filter(isProbablyVisible);
+      for (const element of elements) {
+        const text = normalizeLineText(element.textContent ?? "");
+        if (text && text.length <= 120) {
+          return text;
+        }
+      }
+    }
+
+    return "";
+  }
+
+  function extractTimeElement() {
+    const timeElement = document.querySelector('time[datetime], [itemprop="datePublished"][datetime]');
+    return timeElement?.getAttribute("datetime")?.trim() || "";
+  }
+
+  function parseStructuredData() {
+    return Array.from(document.querySelectorAll('script[type="application/ld+json"]'))
+      .flatMap((node) => {
+        try {
+          const parsed = JSON.parse(node.textContent || "null");
+          return Array.isArray(parsed) ? parsed : [parsed];
+        } catch {
+          return [];
+        }
+      })
+      .filter(Boolean);
+  }
+
+  function extractAuthorFromStructuredData(records) {
+    for (const record of records) {
+      const author = readAuthorFromRecord(record);
+      if (author) {
+        return author;
+      }
+    }
+
+    return "";
+  }
+
+  function readAuthorFromRecord(record) {
+    if (!record || typeof record !== "object") {
+      return "";
+    }
+
+    if (Array.isArray(record.author)) {
+      for (const authorEntry of record.author) {
+        const value = readAuthorFromRecord(authorEntry);
+        if (value) {
+          return value;
+        }
+      }
+    }
+
+    if (typeof record.author === "object" && record.author) {
+      const value = readAuthorFromRecord(record.author);
+      if (value) {
+        return value;
+      }
+    }
+
+    if (typeof record.name === "string" && String(record["@type"] || "").toLowerCase().includes("person")) {
+      return record.name;
+    }
+
+    if (Array.isArray(record["@graph"])) {
+      return extractAuthorFromStructuredData(record["@graph"]);
+    }
+
+    return "";
+  }
+
+  function extractPublishedDateFromStructuredData(records) {
+    for (const record of records) {
+      const value = readPublishedDateFromRecord(record);
+      if (value) {
+        return value;
+      }
+    }
+
+    return "";
+  }
+
+  function readPublishedDateFromRecord(record) {
+    if (!record || typeof record !== "object") {
+      return "";
+    }
+
+    for (const key of ["datePublished", "dateCreated", "uploadDate", "dateModified"]) {
+      if (typeof record[key] === "string" && record[key].trim()) {
+        return record[key].trim();
+      }
+    }
+
+    if (Array.isArray(record["@graph"])) {
+      return extractPublishedDateFromStructuredData(record["@graph"]);
+    }
+
+    return "";
+  }
+
+  function normalizeAuthorName(value) {
+    const text = normalizeLineText(String(value || "").replace(/^by\s+/i, ""));
+    return text || "";
+  }
+
+  function normalizePublishedDate(value) {
+    const text = String(value || "").trim();
+    if (!text) {
+      return "";
+    }
+
+    const parsed = new Date(text);
+    return Number.isNaN(parsed.getTime()) ? text : parsed.toISOString();
   }
 }
 
@@ -667,14 +856,15 @@ function buildSavePayload(snapshot, settings, sourceUrl = snapshot.url) {
   const configuredTags = normalizeTags(settings.defaultTags) ?? DEFAULT_TAGS;
   const captureMode = settings.captureMode ?? DEFAULT_CAPTURE_MODE;
   const originalUrl = snapshot.url;
-  const author = deriveAuthorName(originalUrl);
+  const author = snapshot.metadata?.author || deriveAuthorName(originalUrl);
+  const publishedDate = snapshot.metadata?.publishedDate || "";
   const capturedAt = new Date().toISOString();
   const html = captureMode === "html"
     ? selectHtmlSnapshot(snapshot, settings.htmlScope)
     : buildTextSnapshotHtml(snapshot.title, snapshot.contentBlocks, snapshot.filteredText || snapshot.visibleText);
   const shouldCleanHtml = captureMode === "html" || settings.forceReaderClean === true;
 
-  return {
+  const payload = {
     url: sourceUrl,
     title: `${titlePrefix}${snapshot.title}`.trim(),
     author,
@@ -682,12 +872,13 @@ function buildSavePayload(snapshot, settings, sourceUrl = snapshot.url) {
     should_clean_html: shouldCleanHtml,
     category: "article",
     saved_using: "readwise-save-translated-extension",
-    tags: configuredTags,
     notes: [
       "Saved as a translated snapshot from Chrome.",
       `Capture mode: ${captureMode}`,
       `HTML scope: ${settings.htmlScope}`,
       `Readwise clean HTML: ${shouldCleanHtml ? "enabled" : "disabled"}`,
+      `Author: ${author || "not found"}`,
+      `Published date: ${publishedDate || "not found"}`,
       `Detected CJK characters: ${snapshot.detectedCjkCount}`,
       `Content root: ${snapshot.contentRootSelector}`,
       `Article root: ${snapshot.articleSelector || "not found"}`,
@@ -697,6 +888,16 @@ function buildSavePayload(snapshot, settings, sourceUrl = snapshot.url) {
       `Captured at: ${capturedAt}`
     ].join("\n")
   };
+
+  if (configuredTags.length > 0) {
+    payload.tags = configuredTags;
+  }
+
+  if (publishedDate) {
+    payload.published_date = publishedDate;
+  }
+
+  return payload;
 }
 
 async function loadResolvedSettings(includeLastSaveResult) {
@@ -757,6 +958,14 @@ function normalizeTags(value) {
   return Array.isArray(value)
     ? value.map((tag) => String(tag).trim()).filter(Boolean)
     : null;
+}
+
+function areSameTags(left, right) {
+  if (!Array.isArray(left) || !Array.isArray(right)) {
+    return false;
+  }
+
+  return left.length === right.length && left.every((tag, index) => tag === right[index]);
 }
 
 function normalizeCaptureMode(value) {
@@ -883,4 +1092,22 @@ async function setBadge(tabId, text, color) {
 
   await chrome.action.setBadgeBackgroundColor({ tabId, color });
   await chrome.action.setBadgeText({ tabId, text });
+}
+
+async function showActionNotification(title, message) {
+  await chrome.notifications.create({
+    type: "basic",
+    iconUrl: NOTIFICATION_ICON_PATH,
+    title,
+    message
+  });
+}
+
+function buildSuccessMessage(resultSummary) {
+  const scopeLabel = resultSummary.htmlScope === "article-only" ? "article-only" : "whole-page";
+  if (resultSummary.author) {
+    return `Saved with ${scopeLabel}. Author: ${resultSummary.author}`;
+  }
+
+  return `Saved with ${scopeLabel}.`;
 }
