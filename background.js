@@ -697,12 +697,28 @@ function capturePageSnapshot() {
     const heading = pickPrimaryHeading(articleRoot, contentRoot);
     const originalTitle = resolveOriginalTitle(heading);
     const translatedTitle = findTranslatedTitleNearHeading(heading, articleRoot ?? contentRoot ?? document.body);
+    const resolvedTitle = buildResolvedTitle(originalTitle, translatedTitle, document.title);
 
     return {
       originalTitle,
       translatedTitle,
-      resolvedTitle: translatedTitle || originalTitle || document.title
+      resolvedTitle
     };
+  }
+
+  function buildResolvedTitle(originalTitle, translatedTitle, fallbackTitle) {
+    const normalizedOriginal = normalizeHeadingText(originalTitle);
+    const normalizedTranslated = normalizeHeadingText(translatedTitle);
+
+    if (normalizedOriginal && normalizedTranslated) {
+      const lowerOriginal = normalizedOriginal.toLowerCase();
+      const lowerTranslated = normalizedTranslated.toLowerCase();
+      if (lowerOriginal !== lowerTranslated) {
+        return `${normalizedOriginal} / ${normalizedTranslated}`;
+      }
+    }
+
+    return normalizedTranslated || normalizedOriginal || fallbackTitle;
   }
 
   function pickPrimaryHeading(articleRoot, contentRoot) {
