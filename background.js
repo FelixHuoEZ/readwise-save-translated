@@ -1,6 +1,7 @@
 const SAVE_ENDPOINT = "https://readwise.io/api/v3/save/";
 const FILE_CONFIG_PATH = "config.local.json";
-const DEFAULT_TITLE_PREFIX = "[ZH] ";
+const LEGACY_TITLE_PREFIX = "[ZH] ";
+const DEFAULT_TITLE_PREFIX = "";
 const LEGACY_DEFAULT_TAGS = ["translated", "snapshot", "lang:zh", "chrome-extension"];
 const DEFAULT_TAGS = [];
 const DEFAULT_CAPTURE_MODE = "html";
@@ -9,6 +10,19 @@ const BADGE_RESET_DELAY_MS = 5000;
 const TOAST_DURATION_MS = 2600;
 const LAST_SAVE_RESULT_KEY = "lastSaveResult";
 const DETAILS_MENU_ID = "open-details";
+const DEFAULT_ACTION_ICON_PATHS = {
+  16: "assets/icon-16.png",
+  32: "assets/icon-32.png"
+};
+const SUCCESS_ACTION_ICON_PATHS = {
+  16: "assets/icon-success-16.png",
+  32: "assets/icon-success-32.png"
+};
+const ERROR_ACTION_ICON_PATHS = {
+  16: "assets/icon-error-16.png",
+  32: "assets/icon-error-32.png"
+};
+const actionIconResetTimers = new Map();
 
 chrome.runtime.onInstalled.addListener(async () => {
   const settings = await chrome.storage.local.get([
@@ -20,7 +34,7 @@ chrome.runtime.onInstalled.addListener(async () => {
 
   const updates = {};
 
-  if (!settings.titlePrefix) {
+  if (settings.titlePrefix == null) {
     updates.titlePrefix = DEFAULT_TITLE_PREFIX;
   }
 
@@ -40,12 +54,16 @@ chrome.runtime.onInstalled.addListener(async () => {
     await chrome.storage.local.set(updates);
   }
 
+  await migrateLegacyTitlePrefix();
   await ensureContextMenus();
+  await setActionIcon(null, "default");
 });
 
 chrome.runtime.onStartup.addListener(() => {
   void ensureContextMenus();
   void migrateLegacyDefaultTags();
+  void migrateLegacyTitlePrefix();
+  void setActionIcon(null, "default");
 });
 
 chrome.action.onClicked.addListener((tab) => {
@@ -128,6 +146,13 @@ async function migrateLegacyDefaultTags() {
   const { defaultTags } = await chrome.storage.local.get(["defaultTags"]);
   if (areSameTags(normalizeTags(defaultTags), LEGACY_DEFAULT_TAGS)) {
     await chrome.storage.local.set({ defaultTags: DEFAULT_TAGS });
+  }
+}
+
+async function migrateLegacyTitlePrefix() {
+  const { titlePrefix } = await chrome.storage.local.get(["titlePrefix"]);
+  if (titlePrefix === LEGACY_TITLE_PREFIX) {
+    await chrome.storage.local.set({ titlePrefix: DEFAULT_TITLE_PREFIX });
   }
 }
 
@@ -224,7 +249,8 @@ async function performSave(tab, overrides = {}) {
       };
 
       await chrome.storage.local.set({ [LAST_SAVE_RESULT_KEY]: resultSummary });
-      await setBadge(tab.id, "✓", "#15803d");
+      await clearBadge(tab.id);
+      await flashActionIcon(tab.id, "success");
       await showPageToast(tab.id, "success", buildSuccessToastMessage(resultSummary));
       return resultSummary;
     });
@@ -256,7 +282,8 @@ async function performSave(tab, overrides = {}) {
     console.error(error);
 
     if (!error.message.startsWith("Missing Readwise access token")) {
-      await setBadge(tab.id, "!", "#b91c1c");
+      await clearBadge(tab.id);
+      await flashActionIcon(tab.id, "error");
       await showPageToast(tab.id, "error", shortenToastMessage(error.message));
     }
 
@@ -1071,6 +1098,7 @@ function deriveAuthorName(url) {
 }
 
 async function withBadge(tabId, text, color, work) {
+  await setActionIcon(tabId, "default");
   await setBadge(tabId, text, color);
 
   try {
@@ -1091,6 +1119,49 @@ async function setBadge(tabId, text, color) {
 
   await chrome.action.setBadgeBackgroundColor({ tabId, color });
   await chrome.action.setBadgeText({ tabId, text });
+}
+
+async function clearBadge(tabId) {
+  if (!tabId) {
+    return;
+  }
+
+  await chrome.action.setBadgeText({ tabId, text: "" });
+}
+
+async function setActionIcon(tabId = null, state = "default") {
+  const path = state === "success"
+    ? SUCCESS_ACTION_ICON_PATHS
+    : state === "error"
+      ? ERROR_ACTION_ICON_PATHS
+      : DEFAULT_ACTION_ICON_PATHS;
+
+  if (tabId) {
+    await chrome.action.setIcon({ tabId, path });
+    return;
+  }
+
+  await chrome.action.setIcon({ path });
+}
+
+async function flashActionIcon(tabId, state) {
+  if (!tabId) {
+    return;
+  }
+
+  const existingTimer = actionIconResetTimers.get(tabId);
+  if (existingTimer) {
+    clearTimeout(existingTimer);
+  }
+
+  await setActionIcon(tabId, state);
+
+  const resetTimer = setTimeout(() => {
+    chrome.action.setIcon({ tabId, path: DEFAULT_ACTION_ICON_PATHS }).catch(() => {});
+    actionIconResetTimers.delete(tabId);
+  }, BADGE_RESET_DELAY_MS);
+
+  actionIconResetTimers.set(tabId, resetTimer);
 }
 
 async function showPageToast(tabId, kind, message) {

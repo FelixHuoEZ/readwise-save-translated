@@ -12,7 +12,7 @@ void loadSettings();
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
 
-  const titlePrefix = titlePrefixInput.value || "[ZH] ";
+  const titlePrefix = titlePrefixInput.value;
   const defaultTags = tagsInput.value
     .split(",")
     .map((tag) => tag.trim())
@@ -44,7 +44,7 @@ async function loadSettings() {
   ]);
 
   const resolvedToken = settings.readwiseToken || fileSettings.readwiseToken || "";
-  const resolvedTitlePrefix = settings.titlePrefix ?? fileSettings.titlePrefix ?? "[ZH] ";
+  const resolvedTitlePrefix = settings.titlePrefix ?? fileSettings.titlePrefix ?? "";
   const resolvedTags = Array.isArray(settings.defaultTags)
     ? settings.defaultTags
     : Array.isArray(fileSettings.defaultTags)
