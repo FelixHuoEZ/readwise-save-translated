@@ -7,9 +7,9 @@ const DEFAULT_TAGS = [];
 const DEFAULT_CAPTURE_MODE = "html";
 const DEFAULT_HTML_SCOPE = "whole-page";
 const BADGE_RESET_DELAY_MS = 5000;
-const TOAST_DURATION_MS = 2600;
 const LAST_SAVE_RESULT_KEY = "lastSaveResult";
 const DETAILS_MENU_ID = "open-details";
+const DEFAULT_ACTION_TITLE = "Left click: save article-only. Right click: open details.";
 const DEFAULT_ACTION_ICON_PATHS = {
   16: "assets/icon-16.png",
   32: "assets/icon-32.png"
@@ -22,7 +22,6 @@ const ERROR_ACTION_ICON_PATHS = {
   16: "assets/icon-error-16.png",
   32: "assets/icon-error-32.png"
 };
-const actionIconResetTimers = new Map();
 
 chrome.runtime.onInstalled.addListener(async () => {
   const settings = await chrome.storage.local.get([
@@ -57,6 +56,7 @@ chrome.runtime.onInstalled.addListener(async () => {
   await migrateLegacyTitlePrefix();
   await ensureContextMenus();
   await setActionIcon(null, "default");
+  await setActionTitle(null, DEFAULT_ACTION_TITLE);
 });
 
 chrome.runtime.onStartup.addListener(() => {
@@ -64,6 +64,17 @@ chrome.runtime.onStartup.addListener(() => {
   void migrateLegacyDefaultTags();
   void migrateLegacyTitlePrefix();
   void setActionIcon(null, "default");
+  void setActionTitle(null, DEFAULT_ACTION_TITLE);
+});
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (changeInfo.status === "loading" || typeof changeInfo.url === "string") {
+    void resetTabActionState(tabId);
+  }
+});
+
+chrome.tabs.onRemoved.addListener((tabId) => {
+  void resetTabActionState(tabId);
 });
 
 chrome.action.onClicked.addListener((tab) => {
@@ -219,8 +230,14 @@ async function performSave(tab, overrides = {}) {
       const primaryPayload = buildSavePayload(snapshot, settings);
       let saveResult = await saveToReadwise(primaryPayload, settings.readwiseToken);
       let usedFallbackUrl = false;
+      let existingDocumentDetected = false;
+      let existingDocumentUrl = null;
+      let existingDocumentId = null;
 
       if (saveResult.status === 200) {
+        existingDocumentDetected = true;
+        existingDocumentUrl = saveResult.body?.url ?? null;
+        existingDocumentId = saveResult.body?.id ?? null;
         const fallbackPayload = buildSavePayload(snapshot, settings, addTranslatedFragment(snapshot.url));
         saveResult = await saveToReadwise(fallbackPayload, settings.readwiseToken);
         usedFallbackUrl = true;
@@ -235,6 +252,9 @@ async function performSave(tab, overrides = {}) {
         readerSourceUrl: saveResult.sourceUrl,
         readerDocumentUrl: saveResult.body?.url ?? null,
         readerDocumentId: saveResult.body?.id ?? null,
+        existingDocumentDetected,
+        existingDocumentUrl,
+        existingDocumentId,
         author: snapshot.metadata.author,
         publishedDate: snapshot.metadata.publishedDate,
         captureMode: settings.captureMode,
@@ -252,8 +272,8 @@ async function performSave(tab, overrides = {}) {
 
       await chrome.storage.local.set({ [LAST_SAVE_RESULT_KEY]: resultSummary });
       await clearBadge(tab.id);
-      await flashActionIcon(tab.id, "success");
-      await showPageToast(tab.id, "success", buildSuccessToastMessage(resultSummary));
+      await setActionIcon(tab.id, "success");
+      await setActionTitle(tab.id, buildSuccessActionTitle(resultSummary));
       return resultSummary;
     });
   } catch (error) {
@@ -264,6 +284,9 @@ async function performSave(tab, overrides = {}) {
       readerSourceUrl: null,
       readerDocumentUrl: null,
       readerDocumentId: null,
+      existingDocumentDetected: false,
+      existingDocumentUrl: null,
+      existingDocumentId: null,
       originalTitle: null,
       translatedTitle: null,
       author: null,
@@ -287,8 +310,8 @@ async function performSave(tab, overrides = {}) {
 
     if (!error.message.startsWith("Missing Readwise access token")) {
       await clearBadge(tab.id);
-      await flashActionIcon(tab.id, "error");
-      await showPageToast(tab.id, "error", shortenToastMessage(error.message));
+      await setActionIcon(tab.id, "error");
+      await setActionTitle(tab.id, buildErrorActionTitle(error.message));
     }
 
     throw error;
@@ -1308,6 +1331,7 @@ function deriveAuthorName(url) {
 
 async function withBadge(tabId, text, color, work) {
   await setActionIcon(tabId, "default");
+  await setActionTitle(tabId, DEFAULT_ACTION_TITLE);
   await setBadge(tabId, text, color);
 
   try {
@@ -1353,126 +1377,42 @@ async function setActionIcon(tabId = null, state = "default") {
   await chrome.action.setIcon({ path });
 }
 
-async function flashActionIcon(tabId, state) {
+async function setActionTitle(tabId = null, title = DEFAULT_ACTION_TITLE) {
+  if (!tabId) {
+    await chrome.action.setTitle({ title });
+    return;
+  }
+
+  await chrome.action.setTitle({ tabId, title });
+}
+
+async function resetTabActionState(tabId) {
   if (!tabId) {
     return;
   }
 
-  const existingTimer = actionIconResetTimers.get(tabId);
-  if (existingTimer) {
-    clearTimeout(existingTimer);
-  }
-
-  await setActionIcon(tabId, state);
-
-  const resetTimer = setTimeout(() => {
-    chrome.action.setIcon({ tabId, path: DEFAULT_ACTION_ICON_PATHS }).catch(() => {});
-    actionIconResetTimers.delete(tabId);
-  }, BADGE_RESET_DELAY_MS);
-
-  actionIconResetTimers.set(tabId, resetTimer);
-}
-
-async function showPageToast(tabId, kind, message) {
-  if (!tabId || !message) {
-    return;
-  }
-
   try {
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      args: [{ kind, message, durationMs: TOAST_DURATION_MS }],
-      func: ({ kind: toastKind, message: toastMessage, durationMs }) => {
-        const toastId = "__readwise_save_translated_toast__";
-        const timerKey = "__readwiseSaveTranslatedToastTimer__";
-        const existing = document.getElementById(toastId);
-
-        if (existing) {
-          existing.remove();
-        }
-
-        if (window[timerKey]) {
-          window.clearTimeout(window[timerKey]);
-        }
-
-        const toast = document.createElement("div");
-        toast.id = toastId;
-        toast.setAttribute("role", "status");
-        toast.setAttribute("aria-live", "polite");
-        toast.textContent = toastMessage;
-
-        const palette = toastKind === "error"
-          ? {
-              background: "rgba(127, 29, 29, 0.94)",
-              border: "rgba(254, 202, 202, 0.28)",
-              shadow: "rgba(127, 29, 29, 0.35)"
-            }
-          : {
-              background: "rgba(6, 78, 59, 0.94)",
-              border: "rgba(167, 243, 208, 0.28)",
-              shadow: "rgba(6, 78, 59, 0.28)"
-            };
-
-        Object.assign(toast.style, {
-          position: "fixed",
-          top: "16px",
-          right: "16px",
-          zIndex: "2147483647",
-          maxWidth: "min(360px, calc(100vw - 24px))",
-          padding: "11px 14px",
-          borderRadius: "14px",
-          border: `1px solid ${palette.border}`,
-          background: palette.background,
-          color: "#f8fafc",
-          boxShadow: `0 18px 40px ${palette.shadow}`,
-          font: '600 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
-          letterSpacing: "0.01em",
-          backdropFilter: "blur(10px)",
-          WebkitBackdropFilter: "blur(10px)",
-          pointerEvents: "none",
-          opacity: "0",
-          transform: "translateY(-8px)",
-          transition: "opacity 160ms ease, transform 160ms ease"
-        });
-
-        document.documentElement.appendChild(toast);
-
-        window.requestAnimationFrame(() => {
-          toast.style.opacity = "1";
-          toast.style.transform = "translateY(0)";
-        });
-
-        window[timerKey] = window.setTimeout(() => {
-          toast.style.opacity = "0";
-          toast.style.transform = "translateY(-8px)";
-          window.setTimeout(() => {
-            if (toast.isConnected) {
-              toast.remove();
-            }
-          }, 180);
-        }, durationMs);
-      }
-    });
+    await clearBadge(tabId);
+    await setActionIcon(tabId, "default");
+    await setActionTitle(tabId, DEFAULT_ACTION_TITLE);
   } catch {
-    // Ignore toast failures so save flow still completes.
+    // Ignore reset failures for tabs that no longer exist.
   }
 }
 
-function buildSuccessToastMessage(resultSummary) {
-  const scopeLabel = resultSummary.htmlScope === "article-only" ? "article-only" : "whole-page";
-
-  if (resultSummary.usedFallbackUrl) {
-    return `Saved to Readwise with ${scopeLabel} and URL retry.`;
+function buildSuccessActionTitle(resultSummary) {
+  if (resultSummary.existingDocumentDetected) {
+    return "Saved translated variant. This URL already existed in Readwise.";
   }
 
-  return `Saved to Readwise with ${scopeLabel}.`;
+  return "Saved translated version to Readwise.";
 }
 
-function shortenToastMessage(message) {
+function buildErrorActionTitle(message) {
   const normalized = String(message || "").replace(/\s+/g, " ").trim();
   if (normalized.length <= 140) {
-    return normalized;
+    return `Readwise save failed: ${normalized}`;
   }
 
-  return `${normalized.slice(0, 137)}...`;
+  return `Readwise save failed: ${normalized.slice(0, 117)}...`;
 }

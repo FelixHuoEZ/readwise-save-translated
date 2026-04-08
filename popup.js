@@ -141,6 +141,19 @@ function renderLastSave(lastSaveResult) {
     rows.push(renderRow("Reader source URL", escapeHtml(lastSaveResult.readerSourceUrl)));
   }
 
+  if (lastSaveResult.existingDocumentDetected) {
+    rows.push(renderRow("Existing Reader doc", "This URL already existed in Reader."));
+  }
+
+  if (lastSaveResult.existingDocumentUrl) {
+    rows.push(
+      renderRow(
+        "Existing Reader link",
+        `<a href="${escapeAttribute(lastSaveResult.existingDocumentUrl)}" target="_blank" rel="noreferrer">${escapeHtml(lastSaveResult.existingDocumentUrl)}</a>`
+      )
+    );
+  }
+
   if (lastSaveResult.pageTitle) {
     rows.push(renderRow("Resolved title", escapeHtml(lastSaveResult.pageTitle)));
   }
@@ -211,6 +224,9 @@ function renderLastSave(lastSaveResult) {
   const fallbackBadge = lastSaveResult.usedFallbackUrl
     ? '<span class="scope-badge">url fallback</span>'
     : "";
+  const existingBadge = lastSaveResult.existingDocumentDetected
+    ? '<span class="scope-badge">existing doc</span>'
+    : "";
   const debugText = buildDebugText(lastSaveResult);
   const detailsOpen = lastSaveResult.status === "error" ? " open" : "";
 
@@ -220,6 +236,7 @@ function renderLastSave(lastSaveResult) {
         <span class="status-badge ${statusClass}">${escapeHtml(formatStatus(lastSaveResult))}</span>
         ${scopeBadge}
         ${fallbackBadge}
+        ${existingBadge}
       </div>
       ${readerLink}
       <div class="result-meta">Saved ${escapeHtml(formatTime(lastSaveResult.savedAt))}</div>
@@ -259,6 +276,8 @@ function buildDebugText(lastSaveResult) {
     `originalUrl: ${lastSaveResult.originalUrl || ""}`,
     `readerDocumentUrl: ${lastSaveResult.readerDocumentUrl || ""}`,
     `readerSourceUrl: ${lastSaveResult.readerSourceUrl || ""}`,
+    `existingDocumentDetected: ${String(lastSaveResult.existingDocumentDetected ?? false)}`,
+    `existingDocumentUrl: ${lastSaveResult.existingDocumentUrl || ""}`,
     `pageTitle: ${lastSaveResult.pageTitle || ""}`,
     `originalTitle: ${lastSaveResult.originalTitle || ""}`,
     `translatedTitle: ${lastSaveResult.translatedTitle || ""}`,
@@ -296,6 +315,10 @@ function setPill(node, text, state) {
 
 function formatStatus(result) {
   if (result.status === "success") {
+    if (result.existingDocumentDetected) {
+      return "Saved with existing Reader doc";
+    }
+
     return result.usedFallbackUrl ? "Saved with fallback URL" : "Saved successfully";
   }
 

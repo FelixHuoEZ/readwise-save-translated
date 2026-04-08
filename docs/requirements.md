@@ -34,7 +34,9 @@ Build a Chrome extension that saves the translated state of the current web page
 - Add a top-level note that records the original URL and capture time.
 - Show clear success or failure feedback after a left-click save attempt.
 - Use the action icon as the primary save feedback, preserving the base icon and overlaying success or failure state.
-- Prefer an in-page toast over operating-system-level notifications for save feedback.
+- Keep the save-state icon visible for the current tab until that tab navigates to a different page.
+- Do not show transient page toasts or operating-system notifications for save feedback.
+- Detect when the original page URL already exists in Reader before saving a translated variant, and expose that state in the extension details.
 - Show the current page title and URL inside the detailed page.
 - Show whether a Readwise token is configured.
 - Show which capture mode is active.
