@@ -6,9 +6,9 @@ const DEFAULT_TAGS = [];
 const DEFAULT_CAPTURE_MODE = "html";
 const DEFAULT_HTML_SCOPE = "whole-page";
 const BADGE_RESET_DELAY_MS = 5000;
+const TOAST_DURATION_MS = 2600;
 const LAST_SAVE_RESULT_KEY = "lastSaveResult";
 const DETAILS_MENU_ID = "open-details";
-const NOTIFICATION_ICON_PATH = "assets/icon-128.png";
 
 chrome.runtime.onInstalled.addListener(async () => {
   const settings = await chrome.storage.local.get([
@@ -224,8 +224,8 @@ async function performSave(tab, overrides = {}) {
       };
 
       await chrome.storage.local.set({ [LAST_SAVE_RESULT_KEY]: resultSummary });
-      await setBadge(tab.id, "OK", "#15803d");
-      await showActionNotification("Saved to Readwise", buildSuccessMessage(resultSummary));
+      await setBadge(tab.id, "✓", "#15803d");
+      await showPageToast(tab.id, "success", buildSuccessToastMessage(resultSummary));
       return resultSummary;
     });
   } catch (error) {
@@ -256,10 +256,9 @@ async function performSave(tab, overrides = {}) {
     console.error(error);
 
     if (!error.message.startsWith("Missing Readwise access token")) {
-      await setBadge(tab.id, "ERR", "#b91c1c");
+      await setBadge(tab.id, "!", "#b91c1c");
+      await showPageToast(tab.id, "error", shortenToastMessage(error.message));
     }
-
-    await showActionNotification("Readwise save failed", error.message);
 
     throw error;
   }
@@ -1094,20 +1093,106 @@ async function setBadge(tabId, text, color) {
   await chrome.action.setBadgeText({ tabId, text });
 }
 
-async function showActionNotification(title, message) {
-  await chrome.notifications.create({
-    type: "basic",
-    iconUrl: NOTIFICATION_ICON_PATH,
-    title,
-    message
-  });
-}
-
-function buildSuccessMessage(resultSummary) {
-  const scopeLabel = resultSummary.htmlScope === "article-only" ? "article-only" : "whole-page";
-  if (resultSummary.author) {
-    return `Saved with ${scopeLabel}. Author: ${resultSummary.author}`;
+async function showPageToast(tabId, kind, message) {
+  if (!tabId || !message) {
+    return;
   }
 
-  return `Saved with ${scopeLabel}.`;
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      args: [{ kind, message, durationMs: TOAST_DURATION_MS }],
+      func: ({ kind: toastKind, message: toastMessage, durationMs }) => {
+        const toastId = "__readwise_save_translated_toast__";
+        const timerKey = "__readwiseSaveTranslatedToastTimer__";
+        const existing = document.getElementById(toastId);
+
+        if (existing) {
+          existing.remove();
+        }
+
+        if (window[timerKey]) {
+          window.clearTimeout(window[timerKey]);
+        }
+
+        const toast = document.createElement("div");
+        toast.id = toastId;
+        toast.setAttribute("role", "status");
+        toast.setAttribute("aria-live", "polite");
+        toast.textContent = toastMessage;
+
+        const palette = toastKind === "error"
+          ? {
+              background: "rgba(127, 29, 29, 0.94)",
+              border: "rgba(254, 202, 202, 0.28)",
+              shadow: "rgba(127, 29, 29, 0.35)"
+            }
+          : {
+              background: "rgba(6, 78, 59, 0.94)",
+              border: "rgba(167, 243, 208, 0.28)",
+              shadow: "rgba(6, 78, 59, 0.28)"
+            };
+
+        Object.assign(toast.style, {
+          position: "fixed",
+          top: "16px",
+          right: "16px",
+          zIndex: "2147483647",
+          maxWidth: "min(360px, calc(100vw - 24px))",
+          padding: "11px 14px",
+          borderRadius: "14px",
+          border: `1px solid ${palette.border}`,
+          background: palette.background,
+          color: "#f8fafc",
+          boxShadow: `0 18px 40px ${palette.shadow}`,
+          font: '600 13px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+          letterSpacing: "0.01em",
+          backdropFilter: "blur(10px)",
+          WebkitBackdropFilter: "blur(10px)",
+          pointerEvents: "none",
+          opacity: "0",
+          transform: "translateY(-8px)",
+          transition: "opacity 160ms ease, transform 160ms ease"
+        });
+
+        document.documentElement.appendChild(toast);
+
+        window.requestAnimationFrame(() => {
+          toast.style.opacity = "1";
+          toast.style.transform = "translateY(0)";
+        });
+
+        window[timerKey] = window.setTimeout(() => {
+          toast.style.opacity = "0";
+          toast.style.transform = "translateY(-8px)";
+          window.setTimeout(() => {
+            if (toast.isConnected) {
+              toast.remove();
+            }
+          }, 180);
+        }, durationMs);
+      }
+    });
+  } catch {
+    // Ignore toast failures so save flow still completes.
+  }
+}
+
+function buildSuccessToastMessage(resultSummary) {
+  const scopeLabel = resultSummary.htmlScope === "article-only" ? "article-only" : "whole-page";
+
+  if (resultSummary.usedFallbackUrl) {
+    return `Saved to Readwise with ${scopeLabel} and URL retry.`;
+  }
+
+  return `Saved to Readwise with ${scopeLabel}.`;
+}
+
+function shortenToastMessage(message) {
+  const normalized = String(message || "").replace(/\s+/g, " ").trim();
+  if (normalized.length <= 140) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, 137)}...`;
 }
