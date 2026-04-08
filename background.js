@@ -714,7 +714,7 @@ function capturePageSnapshot() {
       const lowerOriginal = normalizedOriginal.toLowerCase();
       const lowerTranslated = normalizedTranslated.toLowerCase();
       if (lowerOriginal !== lowerTranslated) {
-        return `${normalizedOriginal} / ${normalizedTranslated}`;
+        return `${normalizedOriginal} ${normalizedTranslated}`;
       }
     }
 
