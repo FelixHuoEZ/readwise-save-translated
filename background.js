@@ -10,8 +10,9 @@ const BADGE_RESET_DELAY_MS = 5000;
 const LAST_SAVE_RESULT_KEY = "lastSaveResult";
 const TAB_ACTION_STATES_KEY = "tabActionStates";
 const DETAILS_MENU_ID = "open-details";
+const DEFAULT_SAVE_MENU_ID = "save-original-default";
 const SYNTHETIC_FALLBACK_MENU_ID = "save-synthetic-fallback";
-const DEFAULT_ACTION_TITLE = "Left click: save with original URL. Right click: open details or use synthetic fallback.";
+const DEFAULT_ACTION_TITLE = "Left click: save with original URL. Right click: default save, synthetic fallback, or open details.";
 const DEFAULT_ACTION_ICON_PATHS = {
   16: "assets/icon-16.png",
   32: "assets/icon-32.png"
@@ -110,6 +111,16 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     return;
   }
 
+  if (info.menuItemId === DEFAULT_SAVE_MENU_ID && tab?.id) {
+    void saveActiveTab(tab.id, {
+      captureMode: "html",
+      forceReaderClean: true,
+      htmlScope: "whole-page",
+      useSyntheticUrl: false
+    }).catch((error) => handlePrimaryActionError(tab, error));
+    return;
+  }
+
   if (info.menuItemId === SYNTHETIC_FALLBACK_MENU_ID && tab?.id) {
     void saveActiveTab(tab.id, {
       captureMode: "html",
@@ -175,6 +186,11 @@ async function ensureContextMenus() {
   await chrome.contextMenus.create({
     id: DETAILS_MENU_ID,
     title: "Open details",
+    contexts: ["action"]
+  });
+  await chrome.contextMenus.create({
+    id: DEFAULT_SAVE_MENU_ID,
+    title: "Save with original URL (default)",
     contexts: ["action"]
   });
   await chrome.contextMenus.create({
@@ -1232,9 +1248,12 @@ function buildSavePayload(snapshot, settings, sourceUrl = snapshot.url, options 
     html,
     should_clean_html: shouldCleanHtml,
     category: "article",
-    saved_using: "readwise-save-translated-extension",
-    notes: `Original URL: ${originalUrl}`
+    saved_using: "readwise-save-translated-extension"
   };
+
+  if (options.useSyntheticUrl) {
+    payload.notes = `Original URL: ${originalUrl}`;
+  }
 
   if (configuredTags.length > 0) {
     payload.tags = configuredTags;

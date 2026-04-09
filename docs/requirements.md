@@ -51,6 +51,7 @@
 - 左键点击扩展 action 时，直接触发默认保存，不弹出 popup。
 - 右键扩展 action 时，应至少提供：
   - 打开详情页
+  - Save with original URL (default)
   - synthetic URL fallback
 - 详情页用于 fallback、结果查看和调试，不应成为主流程入口。
 
@@ -113,8 +114,9 @@
 
 - 默认不添加任何 tags。
 - 只有用户显式配置时，才附带 tags。
-- 保存时的 document note 只保留原始 URL，不要写入大段诊断信息。
-- 格式应尽量简单，例如：
+- 默认原始 URL 保存路径不写 document note。
+- synthetic fallback 路径的 document note 只保留原始 URL，不要写入大段诊断信息。
+- fallback note 格式应尽量简单，例如：
   - `Original URL: https://...`
 
 ### 4.8 已存在文档检测
