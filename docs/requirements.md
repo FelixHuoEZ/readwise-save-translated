@@ -222,4 +222,9 @@
 - 并不是所有翻译插件都会把翻译写回真实 DOM；如果只是视觉覆盖，本项目可能拿不到中文内容。
 - Readwise 对“直接上传 HTML”这条链路的 URL 去重行为，可能与其他保存路径不同。
 - 当前 fragment fallback 已可用，但未来是否需要 `?query` 或 redirect URL 方案，仍可继续评估。
+- 后续应评估并实现一个轻量 redirect 服务：
+  - synthetic fallback 不再暴露 `translated.local` 之类的假地址
+  - Reader 中保存的 source URL 改为该 redirect 服务地址
+  - 用户点击或复制该链接时，可通过 302/307 跳转回原始页面
+  - 该服务可作为 synthetic URL fallback 的正式替代方案
 - 如果 Reader 中已存在原始英文文档，删除它之后是否会提升后续 raw HTML 清洗质量，仍然属于待观察问题。
