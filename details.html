@@ -417,7 +417,7 @@
             <button class="ghost-button small" id="settings-button" type="button">Settings</button>
           </div>
           <p class="top-note">
-            Left click the extension icon to save article-only immediately. Use this page for fallback saves, diagnostics, and troubleshooting.
+            Left click the extension icon to save with the original page URL. Use this page or the action right-click menu when you need the synthetic URL fallback.
           </p>
         </section>
 
@@ -438,21 +438,21 @@
         <section class="panel actions-panel">
           <div class="action-copy">
             <p class="section-label">Save Mode</p>
-            <p class="action-title">Article first. Whole page only when needed.</p>
+            <p class="action-title">Default save first. Synthetic fallback only when Readwise collapses content back to English.</p>
             <p class="action-subtitle">
-              Article-only is just a lighter HTML scope. On sites like Substack it can still look very similar to whole-page.
+              The fallback path uses a synthetic Reader source URL and adds an original-article link into the saved document so the translated HTML survives Reader cleaning.
             </p>
           </div>
           <div class="action-grid">
             <button class="action-button primary" id="article-save-button" type="button">
-              <span class="button-kicker">Preferred</span>
-              <span class="button-title">Save article-only</span>
-              <span class="button-note">Upload the existing article HTML and let Readwise clean it.</span>
+              <span class="button-kicker">Fallback path</span>
+              <span class="button-title">Use synthetic URL fallback</span>
+              <span class="button-note">Save with a synthetic source URL and include an original-article link in the document body.</span>
             </button>
             <button class="action-button fallback" id="whole-page-button" type="button">
-              <span class="button-kicker">Fallback</span>
-              <span class="button-title">Save whole page</span>
-              <span class="button-note">Use the full rendered page when article scope is missing or no cleaner.</span>
+              <span class="button-kicker">Default path</span>
+              <span class="button-title">Retry default save</span>
+              <span class="button-note">Save with the original page URL and keep Reader's native source-link behavior.</span>
             </button>
           </div>
         </section>

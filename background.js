@@ -8,8 +8,10 @@ const DEFAULT_CAPTURE_MODE = "html";
 const DEFAULT_HTML_SCOPE = "whole-page";
 const BADGE_RESET_DELAY_MS = 5000;
 const LAST_SAVE_RESULT_KEY = "lastSaveResult";
+const TAB_ACTION_STATES_KEY = "tabActionStates";
 const DETAILS_MENU_ID = "open-details";
-const DEFAULT_ACTION_TITLE = "Left click: save article-only. Right click: open details.";
+const SYNTHETIC_FALLBACK_MENU_ID = "save-synthetic-fallback";
+const DEFAULT_ACTION_TITLE = "Left click: save with original URL. Right click: open details or use synthetic fallback.";
 const DEFAULT_ACTION_ICON_PATHS = {
   16: "assets/icon-16.png",
   32: "assets/icon-32.png"
@@ -55,16 +57,17 @@ chrome.runtime.onInstalled.addListener(async () => {
 
   await migrateLegacyTitlePrefix();
   await ensureContextMenus();
-  await setActionIcon(null, "default");
-  await setActionTitle(null, DEFAULT_ACTION_TITLE);
+  await setVisibleActionIcon("default");
+  await setVisibleActionTitle(DEFAULT_ACTION_TITLE);
 });
 
 chrome.runtime.onStartup.addListener(() => {
   void ensureContextMenus();
   void migrateLegacyDefaultTags();
   void migrateLegacyTitlePrefix();
-  void setActionIcon(null, "default");
-  void setActionTitle(null, DEFAULT_ACTION_TITLE);
+  void setVisibleActionIcon("default");
+  void setVisibleActionTitle(DEFAULT_ACTION_TITLE);
+  void syncFocusedWindowActionState();
 });
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
@@ -77,6 +80,18 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   void resetTabActionState(tabId);
 });
 
+chrome.tabs.onActivated.addListener(({ tabId }) => {
+  void syncActionStateForTab(tabId);
+});
+
+chrome.windows.onFocusChanged.addListener((windowId) => {
+  if (windowId === chrome.windows.WINDOW_ID_NONE) {
+    return;
+  }
+
+  void syncFocusedWindowActionState(windowId);
+});
+
 chrome.action.onClicked.addListener((tab) => {
   if (!tab?.id) {
     return;
@@ -85,13 +100,23 @@ chrome.action.onClicked.addListener((tab) => {
   void saveActiveTab(tab.id, {
     captureMode: "html",
     forceReaderClean: true,
-    htmlScope: "article-only"
+    htmlScope: "whole-page"
   }).catch((error) => handlePrimaryActionError(tab, error));
 });
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === DETAILS_MENU_ID) {
     void openDetailsPage(tab?.id ?? null);
+    return;
+  }
+
+  if (info.menuItemId === SYNTHETIC_FALLBACK_MENU_ID && tab?.id) {
+    void saveActiveTab(tab.id, {
+      captureMode: "html",
+      forceReaderClean: true,
+      htmlScope: "article-only",
+      useSyntheticUrl: true
+    }).catch((error) => handlePrimaryActionError(tab, error));
   }
 });
 
@@ -100,7 +125,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     void saveActiveTab(message?.tabId, {
       captureMode: message?.captureMode,
       forceReaderClean: message?.forceReaderClean,
-      htmlScope: message?.htmlScope
+      htmlScope: message?.htmlScope,
+      useSyntheticUrl: message?.useSyntheticUrl
     })
       .then((result) => sendResponse({ ok: true, result }))
       .catch((error) => sendResponse({ ok: false, error: error.message }));
@@ -149,6 +175,11 @@ async function ensureContextMenus() {
   await chrome.contextMenus.create({
     id: DETAILS_MENU_ID,
     title: "Open details",
+    contexts: ["action"]
+  });
+  await chrome.contextMenus.create({
+    id: SYNTHETIC_FALLBACK_MENU_ID,
+    title: "Save with synthetic URL fallback",
     contexts: ["action"]
   });
 }
@@ -227,25 +258,53 @@ async function performSave(tab, overrides = {}) {
         throw new Error("No visible article element was found on this page. Use the whole-page fallback instead.");
       }
 
-      const primaryPayload = buildSavePayload(snapshot, settings);
-      let saveResult = await saveToReadwise(primaryPayload, settings.readwiseToken);
+      const useSyntheticUrl = overrides?.useSyntheticUrl === true;
+      const primarySourceUrl = useSyntheticUrl ? buildSyntheticUrl(snapshot.url) : snapshot.url;
+      const primarySaveRequest = buildSavePayload(snapshot, settings, primarySourceUrl, { useSyntheticUrl });
+      let saveResult = await saveToReadwise(primarySaveRequest.payload, settings.readwiseToken);
       let usedFallbackUrl = false;
       let existingDocumentDetected = false;
       let existingDocumentUrl = null;
       let existingDocumentId = null;
+      let saveRequest = primarySaveRequest;
 
       if (saveResult.status === 200) {
-        existingDocumentDetected = true;
-        existingDocumentUrl = saveResult.body?.url ?? null;
-        existingDocumentId = saveResult.body?.id ?? null;
-        const fallbackPayload = buildSavePayload(snapshot, settings, addTranslatedFragment(snapshot.url));
-        saveResult = await saveToReadwise(fallbackPayload, settings.readwiseToken);
+        if (!useSyntheticUrl) {
+          existingDocumentDetected = true;
+          existingDocumentUrl = saveResult.body?.url ?? null;
+          existingDocumentId = saveResult.body?.id ?? null;
+        }
+
+        const retrySourceUrl = useSyntheticUrl
+          ? buildSyntheticUrl(snapshot.url)
+          : addTranslatedFragment(snapshot.url);
+        const fallbackSaveRequest = buildSavePayload(snapshot, settings, retrySourceUrl, { useSyntheticUrl });
+        saveRequest = fallbackSaveRequest;
+        saveResult = await saveToReadwise(fallbackSaveRequest.payload, settings.readwiseToken);
         usedFallbackUrl = true;
+      }
+
+      const savedDocumentId = saveResult.body?.id ?? null;
+      let titleUpdateApplied = false;
+      let titleUpdateError = null;
+
+      if (
+        savedDocumentId
+        && saveRequest.displayTitle
+        && saveRequest.displayTitle !== saveRequest.ingestTitle
+      ) {
+        try {
+          await updateReadwiseDocument(savedDocumentId, { title: saveRequest.displayTitle }, settings.readwiseToken);
+          titleUpdateApplied = true;
+        } catch (error) {
+          titleUpdateError = error instanceof Error ? error.message : String(error);
+        }
       }
 
       const resultSummary = {
         savedAt: new Date().toISOString(),
         pageTitle: snapshot.title,
+        parserTitle: snapshot.parserTitle,
         originalTitle: snapshot.originalTitle,
         translatedTitle: snapshot.translatedTitle,
         originalUrl: snapshot.url,
@@ -266,20 +325,34 @@ async function performSave(tab, overrides = {}) {
         contentBlockCount: snapshot.contentBlocks.length,
         readerCleanedHtml: settings.forceReaderClean === true,
         htmlScope: settings.htmlScope,
+        ingestTitle: saveRequest.ingestTitle,
+        displayTitle: saveRequest.displayTitle,
+        titleUpdateApplied,
+        titleUpdateError,
+        usedSyntheticUrl: useSyntheticUrl,
         usedFallbackUrl,
         status: "success"
       };
 
       await chrome.storage.local.set({ [LAST_SAVE_RESULT_KEY]: resultSummary });
+      await storeTabActionState(tab.id, {
+        state: "success",
+        title: buildSuccessActionTitle(resultSummary)
+      });
       await clearBadge(tab.id);
-      await setActionIcon(tab.id, "success");
-      await setActionTitle(tab.id, buildSuccessActionTitle(resultSummary));
+      if (tab.active) {
+        await setVisibleActionIcon("success");
+        await setVisibleActionTitle(buildSuccessActionTitle(resultSummary));
+      }
       return resultSummary;
     });
   } catch (error) {
     const failureSummary = {
       savedAt: new Date().toISOString(),
       pageTitle: tab.title ?? "",
+      parserTitle: null,
+      ingestTitle: null,
+      displayTitle: null,
       originalUrl: tab.url ?? "",
       readerSourceUrl: null,
       readerDocumentUrl: null,
@@ -300,6 +373,9 @@ async function performSave(tab, overrides = {}) {
       contentBlockCount: null,
       readerCleanedHtml: null,
       htmlScope: null,
+      titleUpdateApplied: false,
+      titleUpdateError: null,
+      usedSyntheticUrl: false,
       usedFallbackUrl: false,
       status: "error",
       error: error.message
@@ -309,9 +385,15 @@ async function performSave(tab, overrides = {}) {
     console.error(error);
 
     if (!error.message.startsWith("Missing Readwise access token")) {
+      await storeTabActionState(tab.id, {
+        state: "error",
+        title: buildErrorActionTitle(error.message)
+      });
       await clearBadge(tab.id);
-      await setActionIcon(tab.id, "error");
-      await setActionTitle(tab.id, buildErrorActionTitle(error.message));
+      if (tab.active) {
+        await setVisibleActionIcon("error");
+        await setVisibleActionTitle(buildErrorActionTitle(error.message));
+      }
     }
 
     throw error;
@@ -345,9 +427,10 @@ function capturePageSnapshot() {
       title: titleInfo.resolvedTitle,
       originalTitle: titleInfo.originalTitle,
       translatedTitle: titleInfo.translatedTitle,
+      parserTitle: titleInfo.parserTitle,
       url: window.location.href,
       html: document.documentElement.outerHTML,
-      articleHtml: articleRoot ? buildScopedHtml(articleRoot.outerHTML, metadata, titleInfo.resolvedTitle) : null,
+      articleHtml: articleRoot ? buildScopedDocumentHtml(articleRoot, titleInfo.parserTitle) : null,
       visibleText,
       filteredText,
       detectedCjkCount,
@@ -687,24 +770,62 @@ function capturePageSnapshot() {
     return parts.join("");
   }
 
-  function buildScopedHtml(contentHtml, metadata = {}, pageTitle = document.title) {
-    return [
-      "<!doctype html>",
-      "<html>",
-      "<head>",
-      '  <meta charset="utf-8">',
-      `  <title>${escapeHtml(pageTitle)}</title>`,
-      `  <base href="${escapeHtml(window.location.href)}">`,
-      `  <meta property="og:title" content="${escapeHtml(pageTitle)}">`,
-      `  <meta name="twitter:title" content="${escapeHtml(pageTitle)}">`,
-      metadata.author ? `  <meta name="author" content="${escapeHtml(metadata.author)}">` : "",
-      metadata.publishedDate ? `  <meta property="article:published_time" content="${escapeHtml(metadata.publishedDate)}">` : "",
-      "</head>",
-      "<body>",
-      contentHtml,
-      "</body>",
-      "</html>"
-    ].join("\n");
+  function buildScopedDocumentHtml(contentRoot, pageTitle = document.title) {
+    if (!(contentRoot instanceof Element)) {
+      return "";
+    }
+
+    const scopedDocument = document.implementation.createHTMLDocument(pageTitle);
+
+    copyAttributes(document.documentElement, scopedDocument.documentElement);
+    copyAttributes(document.body, scopedDocument.body);
+
+    scopedDocument.head.innerHTML = "";
+    for (const node of Array.from(document.head.childNodes)) {
+      scopedDocument.head.appendChild(node.cloneNode(true));
+    }
+
+    scopedDocument.body.innerHTML = "";
+    scopedDocument.body.appendChild(contentRoot.cloneNode(true));
+
+    ensureBaseHref(scopedDocument);
+    ensureMetaCharset(scopedDocument);
+
+    return `<!doctype html>\n${scopedDocument.documentElement.outerHTML}`;
+  }
+
+  function copyAttributes(source, target) {
+    if (!(source instanceof Element) || !(target instanceof Element)) {
+      return;
+    }
+
+    for (const attribute of Array.from(target.attributes)) {
+      target.removeAttribute(attribute.name);
+    }
+
+    for (const attribute of Array.from(source.attributes)) {
+      target.setAttribute(attribute.name, attribute.value);
+    }
+  }
+
+  function ensureBaseHref(scopedDocument) {
+    let baseElement = scopedDocument.head.querySelector("base");
+    if (!(baseElement instanceof HTMLBaseElement)) {
+      baseElement = scopedDocument.createElement("base");
+      scopedDocument.head.prepend(baseElement);
+    }
+
+    baseElement.setAttribute("href", window.location.href);
+  }
+
+  function ensureMetaCharset(scopedDocument) {
+    if (scopedDocument.head.querySelector('meta[charset]')) {
+      return;
+    }
+
+    const metaCharset = scopedDocument.createElement("meta");
+    metaCharset.setAttribute("charset", "utf-8");
+    scopedDocument.head.prepend(metaCharset);
   }
 
   function escapeHtml(value) {
@@ -721,11 +842,13 @@ function capturePageSnapshot() {
     const originalTitle = resolveOriginalTitle(heading);
     const translatedTitle = findTranslatedTitleNearHeading(heading, articleRoot ?? contentRoot ?? document.body);
     const resolvedTitle = buildResolvedTitle(originalTitle, translatedTitle, document.title);
+    const parserTitle = normalizeHeadingText(translatedTitle) || normalizeHeadingText(originalTitle) || document.title;
 
     return {
       originalTitle,
       translatedTitle,
-      resolvedTitle
+      resolvedTitle,
+      parserTitle
     };
   }
 
@@ -736,9 +859,19 @@ function capturePageSnapshot() {
     if (normalizedOriginal && normalizedTranslated) {
       const lowerOriginal = normalizedOriginal.toLowerCase();
       const lowerTranslated = normalizedTranslated.toLowerCase();
-      if (lowerOriginal !== lowerTranslated) {
-        return `${normalizedOriginal} ${normalizedTranslated}`;
+      if (lowerOriginal === lowerTranslated) {
+        return normalizedOriginal;
       }
+
+      if (lowerOriginal.includes(lowerTranslated)) {
+        return normalizedOriginal;
+      }
+
+      if (lowerTranslated.includes(lowerOriginal)) {
+        return normalizedTranslated;
+      }
+
+      return `${normalizedOriginal} ${normalizedTranslated}`;
     }
 
     return normalizedTranslated || normalizedOriginal || fallbackTitle;
@@ -1056,46 +1189,51 @@ async function saveToReadwise(payload, token) {
   };
 }
 
-function buildSavePayload(snapshot, settings, sourceUrl = snapshot.url) {
+async function updateReadwiseDocument(documentId, patch, token) {
+  const response = await fetch(`https://readwise.io/api/v3/update/${documentId}/`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Token ${token}`
+    },
+    body: JSON.stringify(patch)
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Readwise update failed (${response.status}): ${errorText}`);
+  }
+
+  return response.json();
+}
+
+function buildSavePayload(snapshot, settings, sourceUrl = snapshot.url, options = {}) {
   const titlePrefix = settings.titlePrefix ?? DEFAULT_TITLE_PREFIX;
   const configuredTags = normalizeTags(settings.defaultTags) ?? DEFAULT_TAGS;
   const captureMode = settings.captureMode ?? DEFAULT_CAPTURE_MODE;
   const originalUrl = snapshot.url;
   const author = snapshot.metadata?.author || deriveAuthorName(originalUrl);
   const publishedDate = snapshot.metadata?.publishedDate || "";
-  const capturedAt = new Date().toISOString();
+  const displayTitle = `${titlePrefix}${snapshot.title}`.trim();
+  const ingestTitle = `${titlePrefix}${snapshot.parserTitle || snapshot.title}`.trim();
   const rawHtml = captureMode === "html"
     ? selectHtmlSnapshot(snapshot, settings.htmlScope)
     : buildTextSnapshotHtml(snapshot.title, snapshot.contentBlocks, snapshot.filteredText || snapshot.visibleText);
-  const html = rewriteHtmlTitle(rawHtml, snapshot.title);
+  const retitledHtml = rewriteHtmlTitle(rawHtml, snapshot.parserTitle || snapshot.title);
+  const html = options.useSyntheticUrl
+    ? injectOriginalArticleLink(retitledHtml, originalUrl)
+    : retitledHtml;
   const shouldCleanHtml = captureMode === "html" || settings.forceReaderClean === true;
 
   const payload = {
     url: sourceUrl,
-    title: `${titlePrefix}${snapshot.title}`.trim(),
+    title: ingestTitle,
     author,
     html,
     should_clean_html: shouldCleanHtml,
     category: "article",
     saved_using: "readwise-save-translated-extension",
-    notes: [
-      "Saved as a translated snapshot from Chrome.",
-      `Resolved title: ${snapshot.title || "not found"}`,
-      `Original title: ${snapshot.originalTitle || "not found"}`,
-      `Translated title: ${snapshot.translatedTitle || "not found"}`,
-      `Capture mode: ${captureMode}`,
-      `HTML scope: ${settings.htmlScope}`,
-      `Readwise clean HTML: ${shouldCleanHtml ? "enabled" : "disabled"}`,
-      `Author: ${author || "not found"}`,
-      `Published date: ${publishedDate || "not found"}`,
-      `Detected CJK characters: ${snapshot.detectedCjkCount}`,
-      `Content root: ${snapshot.contentRootSelector}`,
-      `Article root: ${snapshot.articleSelector || "not found"}`,
-      `Captured blocks: ${snapshot.contentBlocks.length}`,
-      `Original URL: ${originalUrl}`,
-      `Reader source URL: ${sourceUrl}`,
-      `Captured at: ${capturedAt}`
-    ].join("\n")
+    notes: `Original URL: ${originalUrl}`
   };
 
   if (configuredTags.length > 0) {
@@ -1106,7 +1244,11 @@ function buildSavePayload(snapshot, settings, sourceUrl = snapshot.url) {
     payload.published_date = publishedDate;
   }
 
-  return payload;
+  return {
+    payload,
+    displayTitle,
+    ingestTitle
+  };
 }
 
 async function loadResolvedSettings(includeLastSaveResult) {
@@ -1252,6 +1394,36 @@ function rewriteHtmlTitle(html, title) {
   return updated;
 }
 
+function injectOriginalArticleLink(html, originalUrl) {
+  if (!html || !originalUrl) {
+    return html;
+  }
+
+  const escapedUrl = escapeHtml(originalUrl);
+  const banner = [
+    '<section data-readwise-original-link="true">',
+    "<p>",
+    `<a href="${escapedUrl}">Open original article</a>`,
+    "</p>",
+    "</section>"
+  ].join("");
+  let updated = String(html);
+
+  const targetPatterns = [
+    /<article\b[^>]*>/i,
+    /<main\b[^>]*>/i,
+    /<body\b[^>]*>/i
+  ];
+
+  for (const pattern of targetPatterns) {
+    if (pattern.test(updated)) {
+      return updated.replace(pattern, (match) => `${match}${banner}`);
+    }
+  }
+
+  return `${banner}${updated}`;
+}
+
 function buildTextSnapshotHtml(title, contentBlocks, fallbackText) {
   const normalizedTitle = String(title || "").trim().toLowerCase();
   const blocks = Array.isArray(contentBlocks) && contentBlocks.length > 0
@@ -1321,6 +1493,40 @@ function addTranslatedFragment(url) {
   return `${url}#${fragment}`;
 }
 
+function buildSyntheticUrl(originalUrl) {
+  const timestamp = Date.now();
+  const hash = simpleHash(originalUrl);
+  const nonce = Math.random().toString(36).slice(2, 8);
+  const slug = buildUrlSlug(originalUrl);
+  return `https://translated.local/readwise-snapshot/${slug}-${timestamp}-${hash}-${nonce}`;
+}
+
+function buildUrlSlug(originalUrl) {
+  try {
+    const url = new URL(originalUrl);
+    return `${sanitizeSlugPart(url.hostname)}-${sanitizeSlugPart(url.pathname)}`.replace(/^-+|-+$/g, "") || "snapshot";
+  } catch {
+    return "snapshot";
+  }
+}
+
+function sanitizeSlugPart(value) {
+  return String(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
+}
+
+function simpleHash(value) {
+  let hash = 0;
+  for (const char of String(value)) {
+    hash = ((hash << 5) - hash + char.charCodeAt(0)) | 0;
+  }
+
+  return Math.abs(hash).toString(36);
+}
+
 function deriveAuthorName(url) {
   try {
     return new URL(url).hostname;
@@ -1330,8 +1536,11 @@ function deriveAuthorName(url) {
 }
 
 async function withBadge(tabId, text, color, work) {
-  await setActionIcon(tabId, "default");
-  await setActionTitle(tabId, DEFAULT_ACTION_TITLE);
+  await clearStoredTabActionState(tabId);
+  if (await isTabCurrentlyActive(tabId)) {
+    await setVisibleActionIcon("default");
+    await setVisibleActionTitle(DEFAULT_ACTION_TITLE);
+  }
   await setBadge(tabId, text, color);
 
   try {
@@ -1362,28 +1571,18 @@ async function clearBadge(tabId) {
   await chrome.action.setBadgeText({ tabId, text: "" });
 }
 
-async function setActionIcon(tabId = null, state = "default") {
+async function setVisibleActionIcon(state = "default") {
   const path = state === "success"
     ? SUCCESS_ACTION_ICON_PATHS
     : state === "error"
       ? ERROR_ACTION_ICON_PATHS
       : DEFAULT_ACTION_ICON_PATHS;
 
-  if (tabId) {
-    await chrome.action.setIcon({ tabId, path });
-    return;
-  }
-
   await chrome.action.setIcon({ path });
 }
 
-async function setActionTitle(tabId = null, title = DEFAULT_ACTION_TITLE) {
-  if (!tabId) {
-    await chrome.action.setTitle({ title });
-    return;
-  }
-
-  await chrome.action.setTitle({ tabId, title });
+async function setVisibleActionTitle(title = DEFAULT_ACTION_TITLE) {
+  await chrome.action.setTitle({ title });
 }
 
 async function resetTabActionState(tabId) {
@@ -1392,15 +1591,105 @@ async function resetTabActionState(tabId) {
   }
 
   try {
+    await clearStoredTabActionState(tabId);
     await clearBadge(tabId);
-    await setActionIcon(tabId, "default");
-    await setActionTitle(tabId, DEFAULT_ACTION_TITLE);
+    if (await isTabCurrentlyActive(tabId)) {
+      await setVisibleActionIcon("default");
+      await setVisibleActionTitle(DEFAULT_ACTION_TITLE);
+    }
   } catch {
     // Ignore reset failures for tabs that no longer exist.
   }
 }
 
+async function syncFocusedWindowActionState(windowId = chrome.windows.WINDOW_ID_CURRENT) {
+  try {
+    const tabs = await chrome.tabs.query({
+      active: true,
+      windowId
+    });
+    const activeTab = tabs[0];
+    if (activeTab?.id) {
+      await syncActionStateForTab(activeTab.id);
+    }
+  } catch {
+    // Ignore sync failures for windows that are no longer available.
+  }
+}
+
+async function syncActionStateForTab(tabId) {
+  if (!tabId) {
+    return;
+  }
+
+  const storedState = await getStoredTabActionState(tabId);
+
+  if (!storedState) {
+    await clearBadge(tabId);
+    await setVisibleActionIcon("default");
+    await setVisibleActionTitle(DEFAULT_ACTION_TITLE);
+    return;
+  }
+
+  await clearBadge(tabId);
+  await setVisibleActionIcon(storedState.state);
+  await setVisibleActionTitle(storedState.title || DEFAULT_ACTION_TITLE);
+}
+
+async function getStoredTabActionState(tabId) {
+  if (!tabId) {
+    return null;
+  }
+
+  const { [TAB_ACTION_STATES_KEY]: rawStates } = await chrome.storage.session.get([TAB_ACTION_STATES_KEY]);
+  const states = rawStates && typeof rawStates === "object" ? rawStates : {};
+  return states[String(tabId)] ?? null;
+}
+
+async function storeTabActionState(tabId, state) {
+  if (!tabId) {
+    return;
+  }
+
+  const { [TAB_ACTION_STATES_KEY]: rawStates } = await chrome.storage.session.get([TAB_ACTION_STATES_KEY]);
+  const states = rawStates && typeof rawStates === "object" ? rawStates : {};
+  states[String(tabId)] = state;
+  await chrome.storage.session.set({ [TAB_ACTION_STATES_KEY]: states });
+}
+
+async function clearStoredTabActionState(tabId) {
+  if (!tabId) {
+    return;
+  }
+
+  const { [TAB_ACTION_STATES_KEY]: rawStates } = await chrome.storage.session.get([TAB_ACTION_STATES_KEY]);
+  const states = rawStates && typeof rawStates === "object" ? rawStates : {};
+  if (!(String(tabId) in states)) {
+    return;
+  }
+
+  delete states[String(tabId)];
+  await chrome.storage.session.set({ [TAB_ACTION_STATES_KEY]: states });
+}
+
+async function isTabCurrentlyActive(tabId) {
+  if (!tabId) {
+    return false;
+  }
+
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    return Boolean(tab.active);
+  } catch {
+    return false;
+  }
+}
+
 function buildSuccessActionTitle(resultSummary) {
+  if (resultSummary.usedSyntheticUrl) {
+    return "Saved translated fallback version with a synthetic Reader source URL.";
+  }
+
   if (resultSummary.existingDocumentDetected) {
     return "Saved translated variant. This URL already existed in Readwise.";
   }

@@ -38,15 +38,16 @@ articleSaveButton.addEventListener("click", async () => {
   await runSave({
     button: articleSaveButton,
     loadingLabel: "Saving…",
-    idleLabel: "Save article-only",
-    successHint: "Saved to Readwise with article-only HTML.",
-    hint: "Uploading the page's article HTML and asking Readwise to clean it into a bilingual Reader document.",
+    idleLabel: "Use synthetic URL fallback",
+    successHint: "Saved to Readwise with synthetic URL fallback.",
+    hint: "Saving with a synthetic Reader source URL so Readwise keeps the translated HTML, then adding an original-article link into the saved document.",
     message: {
       type: "save-active-tab",
       tabId: targetTabId,
       captureMode: "html",
       forceReaderClean: true,
-      htmlScope: "article-only"
+      htmlScope: "article-only",
+      useSyntheticUrl: true
     }
   });
 });
@@ -55,15 +56,16 @@ wholePageButton.addEventListener("click", async () => {
   await runSave({
     button: wholePageButton,
     loadingLabel: "Saving…",
-    idleLabel: "Whole-page fallback",
-    successHint: "Saved to Readwise with whole-page HTML.",
-    hint: "Uploading whole-page raw HTML as the fallback path and asking Readwise to clean it.",
+    idleLabel: "Retry default save",
+    successHint: "Saved to Readwise with the default source URL path.",
+    hint: "Saving with the original page URL, which keeps Reader's native source link behavior.",
     message: {
       type: "save-active-tab",
       tabId: targetTabId,
       captureMode: "html",
       forceReaderClean: true,
-      htmlScope: "whole-page"
+      htmlScope: "whole-page",
+      useSyntheticUrl: false
     }
   });
 });
@@ -106,7 +108,7 @@ function renderActiveTab(activeTab, config) {
   );
   setPill(
     modePill,
-    "Article-first",
+    "Original URL default",
     "ok"
   );
 
@@ -122,7 +124,7 @@ function renderActiveTab(activeTab, config) {
     return;
   }
 
-  saveHintNode.textContent = "Use article-only first. If the saved result still includes newsletter chrome or side matter, try whole-page and compare.";
+  saveHintNode.textContent = "Left click uses the original page URL. If Reader collapses the saved content back to English, use the synthetic URL fallback here or from the action right-click menu.";
 }
 
 function renderLastSave(lastSaveResult) {
@@ -141,6 +143,12 @@ function renderLastSave(lastSaveResult) {
     rows.push(renderRow("Reader source URL", escapeHtml(lastSaveResult.readerSourceUrl)));
   }
 
+  if (lastSaveResult.usedSyntheticUrl) {
+    rows.push(renderRow("Source strategy", "Synthetic URL fallback"));
+  } else {
+    rows.push(renderRow("Source strategy", "Original URL"));
+  }
+
   if (lastSaveResult.existingDocumentDetected) {
     rows.push(renderRow("Existing Reader doc", "This URL already existed in Reader."));
   }
@@ -156,6 +164,18 @@ function renderLastSave(lastSaveResult) {
 
   if (lastSaveResult.pageTitle) {
     rows.push(renderRow("Resolved title", escapeHtml(lastSaveResult.pageTitle)));
+  }
+
+  if (lastSaveResult.parserTitle) {
+    rows.push(renderRow("Parser title", escapeHtml(lastSaveResult.parserTitle)));
+  }
+
+  if (lastSaveResult.ingestTitle) {
+    rows.push(renderRow("Ingest title", escapeHtml(lastSaveResult.ingestTitle)));
+  }
+
+  if (lastSaveResult.displayTitle) {
+    rows.push(renderRow("Display title", escapeHtml(lastSaveResult.displayTitle)));
   }
 
   if (lastSaveResult.originalTitle) {
@@ -184,6 +204,12 @@ function renderLastSave(lastSaveResult) {
 
   if (typeof lastSaveResult.readerCleanedHtml === "boolean") {
     rows.push(renderRow("Reader clean HTML", lastSaveResult.readerCleanedHtml ? "Enabled" : "Disabled"));
+  }
+
+  if (lastSaveResult.titleUpdateApplied) {
+    rows.push(renderRow("Title update", "Applied after save"));
+  } else if (lastSaveResult.titleUpdateError) {
+    rows.push(renderRow("Title update", escapeHtml(lastSaveResult.titleUpdateError)));
   }
 
   if (lastSaveResult.contentRootSelector) {
@@ -224,6 +250,9 @@ function renderLastSave(lastSaveResult) {
   const fallbackBadge = lastSaveResult.usedFallbackUrl
     ? '<span class="scope-badge">url fallback</span>'
     : "";
+  const syntheticBadge = lastSaveResult.usedSyntheticUrl
+    ? '<span class="scope-badge">synthetic fallback</span>'
+    : "";
   const existingBadge = lastSaveResult.existingDocumentDetected
     ? '<span class="scope-badge">existing doc</span>'
     : "";
@@ -235,6 +264,7 @@ function renderLastSave(lastSaveResult) {
       <div class="status-line">
         <span class="status-badge ${statusClass}">${escapeHtml(formatStatus(lastSaveResult))}</span>
         ${scopeBadge}
+        ${syntheticBadge}
         ${fallbackBadge}
         ${existingBadge}
       </div>
@@ -276,9 +306,13 @@ function buildDebugText(lastSaveResult) {
     `originalUrl: ${lastSaveResult.originalUrl || ""}`,
     `readerDocumentUrl: ${lastSaveResult.readerDocumentUrl || ""}`,
     `readerSourceUrl: ${lastSaveResult.readerSourceUrl || ""}`,
+    `usedSyntheticUrl: ${String(lastSaveResult.usedSyntheticUrl ?? false)}`,
     `existingDocumentDetected: ${String(lastSaveResult.existingDocumentDetected ?? false)}`,
     `existingDocumentUrl: ${lastSaveResult.existingDocumentUrl || ""}`,
     `pageTitle: ${lastSaveResult.pageTitle || ""}`,
+    `parserTitle: ${lastSaveResult.parserTitle || ""}`,
+    `ingestTitle: ${lastSaveResult.ingestTitle || ""}`,
+    `displayTitle: ${lastSaveResult.displayTitle || ""}`,
     `originalTitle: ${lastSaveResult.originalTitle || ""}`,
     `translatedTitle: ${lastSaveResult.translatedTitle || ""}`,
     `author: ${lastSaveResult.author || ""}`,
@@ -286,6 +320,8 @@ function buildDebugText(lastSaveResult) {
     `captureMode: ${lastSaveResult.captureMode || ""}`,
     `htmlScope: ${lastSaveResult.htmlScope || ""}`,
     `readerCleanedHtml: ${String(lastSaveResult.readerCleanedHtml)}`,
+    `titleUpdateApplied: ${String(lastSaveResult.titleUpdateApplied ?? false)}`,
+    `titleUpdateError: ${lastSaveResult.titleUpdateError || ""}`,
     `contentRootSelector: ${lastSaveResult.contentRootSelector || ""}`,
     `articleSelector: ${lastSaveResult.articleSelector || ""}`,
     `contentBlockCount: ${String(lastSaveResult.contentBlockCount ?? "")}`,
@@ -315,6 +351,10 @@ function setPill(node, text, state) {
 
 function formatStatus(result) {
   if (result.status === "success") {
+    if (result.usedSyntheticUrl) {
+      return "Saved with synthetic fallback";
+    }
+
     if (result.existingDocumentDetected) {
       return "Saved with existing Reader doc";
     }
