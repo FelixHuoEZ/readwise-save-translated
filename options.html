@@ -87,6 +87,12 @@
         gap: 12px;
       }
 
+      .inline-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
       button {
         border: 0;
         border-radius: 999px;
@@ -96,6 +102,19 @@
         color: #fff8f2;
         background: linear-gradient(135deg, var(--accent), var(--accent-strong));
         cursor: pointer;
+      }
+
+      button.secondary {
+        color: var(--accent-strong);
+        background: transparent;
+        border: 1px solid var(--border);
+      }
+
+      .field-note {
+        margin-top: 4px;
+        font-size: 13px;
+        font-weight: 400;
+        color: var(--muted);
       }
 
       a {
@@ -148,12 +167,17 @@
 
         <label for="redirect-base-url">
           Redirect base URL (optional)
-          <input id="redirect-base-url" name="redirect-base-url" type="url" placeholder="https://go.example.com">
+          <div class="inline-actions">
+            <input id="redirect-base-url" name="redirect-base-url" type="url" placeholder="https://go.example.com">
+            <button id="restore-redirect-base-url" class="secondary" type="button">Restore default domain</button>
+          </div>
+          <span class="field-note">This field defaults to the built-in jump-back domain. Change it only if you run your own redirect service.</span>
         </label>
 
         <label for="redirect-signing-secret">
           Redirect signing secret (optional)
           <input id="redirect-signing-secret" name="redirect-signing-secret" type="password" autocomplete="off" spellcheck="false" placeholder="Set the same secret in your Cloudflare Worker">
+          <span class="field-note">Keep this local. Do not bundle it into a public extension package.</span>
         </label>
 
         <div class="actions">
@@ -170,8 +194,7 @@
       </p>
 
       <p>
-        If you configure a personal redirect service, fallback saves will use your own domain instead of
-        <code>translated.local</code>.
+        Fallback saves can use the built-in jump-back domain, or your own redirect domain if you override it here.
       </p>
     </main>
 

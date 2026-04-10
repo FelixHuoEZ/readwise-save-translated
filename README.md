@@ -103,20 +103,54 @@ Example `config.local.json`:
 3. Open the new Reader document.
 4. Use the `Open original article` link at the top when you need to jump back to the source page.
 
-## Optional: Personal Redirect Service
+## Redirect Domains
 
-If you own a domain, you can replace the synthetic fallback URL with your own redirect domain.
+The settings page includes a default redirect domain for fallback saves.
 
-This repository includes a Cloudflare Worker at [cloudflare/redirect-worker](./cloudflare/redirect-worker).
+If you change that field and want to switch back, use `Restore default domain` in the extension settings.
 
-Typical setup:
+If you prefer to use your own domain instead, configure a personal redirect service and then replace the redirect base URL in settings.
 
-1. Deploy the Worker to `go.example.com`.
-2. Set `Redirect base URL` to `https://go.example.com`.
-3. Set the same signing secret in both the extension and the Worker secret `REDIRECT_SIGNING_SECRET`.
-4. Reload the extension.
+## Custom Redirect Service with Cloudflare Workers
 
-The signing secret is intentionally local-only. It should be configured per user, not bundled into the public extension package.
+This repository includes an optional Cloudflare Worker at [cloudflare/redirect-worker](./cloudflare/redirect-worker).
+
+Use this setup if you want fallback saves to use your own domain instead of the built-in redirect domain.
+
+Example target domain:
+
+- `https://go.example.com`
+
+Recommended rollout:
+
+1. Pick a subdomain such as `go.example.com`.
+2. Open [`cloudflare/redirect-worker/wrangler.jsonc`](./cloudflare/redirect-worker/wrangler.jsonc).
+3. Change the custom-domain route pattern to your own subdomain.
+4. Create a Cloudflare API token using the `Edit Cloudflare Workers` template.
+5. Create a local `.cloudflare.env.local` file from [`.cloudflare.env.local.example`](./.cloudflare.env.local.example).
+6. Fill in:
+   - `CLOUDFLARE_API_TOKEN`
+   - `CLOUDFLARE_ACCOUNT_ID`
+   - `REDIRECT_SIGNING_SECRET`
+   - `REDIRECT_BASE_URL=https://go.example.com`
+7. Upload the Worker secret:
+
+```bash
+npx wrangler secret put REDIRECT_SIGNING_SECRET --config cloudflare/redirect-worker/wrangler.jsonc
+```
+
+8. Deploy the Worker:
+
+```bash
+npm run deploy:redirect-worker
+```
+
+9. Open the extension settings page.
+10. Set `Redirect base URL` to your deployed domain.
+11. Set the same `Redirect signing secret` in the extension settings.
+12. Reload the extension.
+
+The signing secret is intentionally local-only. Do not bundle it into a public extension package.
 
 ## Privacy
 

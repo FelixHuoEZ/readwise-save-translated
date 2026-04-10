@@ -21,6 +21,7 @@
 - 默认路径优先保留 Readwise 的原生 source-link 行为。
 - fallback source URL 方案只在默认路径把内容清洗回英文时使用。
 - 如果用户配置了个人 redirect 服务，fallback source URL 应优先使用 redirect URL。
+- 扩展内置一个默认 redirect 域名，作为 fallback source URL 的默认跳转域名。
 - 如果用户没有配置 redirect 服务，fallback source URL 再退回 synthetic URL。
 - 整个产品方向是“保存翻译后的页面状态”，不是“重新抓取原始 URL 并重新翻译”。
 - 如果翻译插件没有把中文写入真实 DOM，而只是视觉覆盖，那么本项目的保存效果不保证可用。
@@ -206,6 +207,11 @@
   - title prefix
   - capture mode
   - default tags
+  - redirect base URL
+  - redirect signing secret
+- redirect base URL 在设置页中应默认填入内置 redirect 域名。
+- 用户必须可以在设置页中把 redirect base URL 改成自己的自定义域名。
+- 设置页必须提供“恢复默认 redirect 域名”的入口。
 - 同时支持通过本地 `config.local.json` 提供这些配置。
 - unpacked extension 模式下，用户应能仅通过改本地配置文件完成初始化。
 
@@ -228,6 +234,9 @@
 - 并不是所有翻译插件都会把翻译写回真实 DOM；如果只是视觉覆盖，本项目可能拿不到中文内容。
 - Readwise 对“直接上传 HTML”这条链路的 URL 去重行为，可能与其他保存路径不同。
 - 当前已支持可选的 redirect 服务，用于替代 `translated.local` 之类的假地址。
+- 当前 redirect 服务支持两种模式：
+  - 直接使用内置默认 redirect 域名
+  - 用户自定义自己的 redirect 域名
 - 如果用户没有配置 redirect 服务，扩展仍需保留现有 synthetic URL fallback 作为兜底路径。
 - 当前 redirect 服务设计是“用户自带域名 + 本地配置 secret”，仍然属于高级用法。
 - 如果 Reader 中已存在原始英文文档，删除它之后是否会提升后续 raw HTML 清洗质量，仍然属于待观察问题。

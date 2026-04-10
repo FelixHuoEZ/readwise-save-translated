@@ -11,6 +11,7 @@ const LEGACY_DEFAULT_TAGS = ["translated", "snapshot", "lang:zh", "chrome-extens
 const DEFAULT_TAGS = [];
 const DEFAULT_CAPTURE_MODE = "html";
 const DEFAULT_HTML_SCOPE = "whole-page";
+const DEFAULT_REDIRECT_BASE_URL = "https://go.example.com";
 const LAST_SAVE_RESULT_KEY = "lastSaveResult";
 const TAB_ACTION_STATES_KEY = "tabActionStates";
 const DETAILS_MENU_ID = "open-details";
@@ -1315,7 +1316,7 @@ async function loadResolvedSettings(includeLastSaveResult) {
       ?? DEFAULT_CAPTURE_MODE,
     redirectBaseUrl: normalizeRedirectBaseUrlValue(storageSettings.redirectBaseUrl)
       ?? normalizeRedirectBaseUrlValue(fileSettings.redirectBaseUrl)
-      ?? "",
+      ?? DEFAULT_REDIRECT_BASE_URL,
     redirectSigningSecret: storageSettings.redirectSigningSecret || fileSettings.redirectSigningSecret || "",
     lastSaveResult: includeLastSaveResult ? storageSettings[LAST_SAVE_RESULT_KEY] ?? null : null,
     sources: {

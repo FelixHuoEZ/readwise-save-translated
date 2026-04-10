@@ -4,7 +4,7 @@ This Worker turns a signed fallback URL into a normal redirect back to the origi
 
 ## Route
 
-- Custom domain: `https://go.example.com`
+- Custom domain example: `https://go.example.com`
 - Redirect path: `/open`
 
 Example generated URL:
@@ -26,7 +26,7 @@ Use the same secret value in the extension settings as `Redirect signing secret`
 ## Deploy
 
 ```bash
-npx wrangler login
+cp .cloudflare.env.local.example .cloudflare.env.local
 npx wrangler deploy --config cloudflare/redirect-worker/wrangler.jsonc
 ```
 
@@ -34,7 +34,7 @@ npx wrangler deploy --config cloudflare/redirect-worker/wrangler.jsonc
 
 After deploy, set:
 
-- `Redirect base URL`: `https://go.example.com`
+- `Redirect base URL`: your deployed redirect domain, for example `https://go.example.com`
 - `Redirect signing secret`: the same value used for `REDIRECT_SIGNING_SECRET`
 
 Then reload the extension.
