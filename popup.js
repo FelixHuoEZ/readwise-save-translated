@@ -141,27 +141,29 @@ function renderLastSave(lastSaveResult) {
   }
 
   const rows = [];
-  rows.push(renderRow("Saved at", formatTime(lastSaveResult.savedAt)));
-  rows.push(renderRow("Original URL", escapeHtml(lastSaveResult.originalUrl || "—")));
+  const technicalRows = [];
+
+  technicalRows.push(renderRow("Saved at", formatTime(lastSaveResult.savedAt)));
+  technicalRows.push(renderRow("Original URL", escapeHtml(lastSaveResult.originalUrl || "—")));
 
   if (lastSaveResult.readerSourceUrl) {
-    rows.push(renderRow("Reader source URL", escapeHtml(lastSaveResult.readerSourceUrl)));
+    technicalRows.push(renderRow("Reader source URL", escapeHtml(lastSaveResult.readerSourceUrl)));
   }
 
   if (lastSaveResult.usedRedirectUrl) {
-    rows.push(renderRow("Source strategy", "Redirect fallback"));
+    technicalRows.push(renderRow("Source strategy", "Redirect fallback"));
   } else if (lastSaveResult.usedSyntheticUrl) {
-    rows.push(renderRow("Source strategy", "Synthetic URL fallback"));
+    technicalRows.push(renderRow("Source strategy", "Synthetic URL fallback"));
   } else {
-    rows.push(renderRow("Source strategy", "Original URL"));
+    technicalRows.push(renderRow("Source strategy", "Original URL"));
   }
 
   if (lastSaveResult.existingDocumentDetected) {
-    rows.push(renderRow("Existing Reader doc", "This URL already existed in Reader."));
+    technicalRows.push(renderRow("Existing Reader doc", "This URL already existed in Reader."));
   }
 
   if (lastSaveResult.existingDocumentUrl) {
-    rows.push(
+    technicalRows.push(
       renderRow(
         "Existing Reader link",
         `<a href="${escapeAttribute(lastSaveResult.existingDocumentUrl)}" target="_blank" rel="noreferrer">${escapeHtml(lastSaveResult.existingDocumentUrl)}</a>`
@@ -170,81 +172,81 @@ function renderLastSave(lastSaveResult) {
   }
 
   if (lastSaveResult.pageTitle) {
-    rows.push(renderRow("Resolved title", escapeHtml(lastSaveResult.pageTitle)));
+    technicalRows.push(renderRow("Resolved title", escapeHtml(lastSaveResult.pageTitle)));
   }
 
   if (lastSaveResult.parserTitle) {
-    rows.push(renderRow("Parser title", escapeHtml(lastSaveResult.parserTitle)));
+    technicalRows.push(renderRow("Parser title", escapeHtml(lastSaveResult.parserTitle)));
   }
 
   if (lastSaveResult.ingestTitle) {
-    rows.push(renderRow("Ingest title", escapeHtml(lastSaveResult.ingestTitle)));
+    technicalRows.push(renderRow("Ingest title", escapeHtml(lastSaveResult.ingestTitle)));
   }
 
   if (lastSaveResult.displayTitle) {
-    rows.push(renderRow("Display title", escapeHtml(lastSaveResult.displayTitle)));
+    technicalRows.push(renderRow("Display title", escapeHtml(lastSaveResult.displayTitle)));
   }
 
   if (lastSaveResult.originalTitle) {
-    rows.push(renderRow("Original title", escapeHtml(lastSaveResult.originalTitle)));
+    technicalRows.push(renderRow("Original title", escapeHtml(lastSaveResult.originalTitle)));
   }
 
   if (lastSaveResult.translatedTitle) {
-    rows.push(renderRow("Translated title", escapeHtml(lastSaveResult.translatedTitle)));
+    technicalRows.push(renderRow("Translated title", escapeHtml(lastSaveResult.translatedTitle)));
   }
 
   if (lastSaveResult.author) {
-    rows.push(renderRow("Author", escapeHtml(lastSaveResult.author)));
+    technicalRows.push(renderRow("Author", escapeHtml(lastSaveResult.author)));
   }
 
   if (lastSaveResult.publishedDate) {
-    rows.push(renderRow("Published", escapeHtml(formatTime(lastSaveResult.publishedDate))));
+    technicalRows.push(renderRow("Published", escapeHtml(formatTime(lastSaveResult.publishedDate))));
   }
 
   if (lastSaveResult.captureMode) {
-    rows.push(renderRow("Capture mode", escapeHtml(lastSaveResult.captureMode)));
+    technicalRows.push(renderRow("Capture mode", escapeHtml(lastSaveResult.captureMode)));
   }
 
   if (lastSaveResult.htmlScope) {
-    rows.push(renderRow("HTML scope", escapeHtml(lastSaveResult.htmlScope)));
+    technicalRows.push(renderRow("HTML scope", escapeHtml(lastSaveResult.htmlScope)));
   }
 
   if (typeof lastSaveResult.readerCleanedHtml === "boolean") {
-    rows.push(renderRow("Reader clean HTML", lastSaveResult.readerCleanedHtml ? "Enabled" : "Disabled"));
+    technicalRows.push(renderRow("Reader clean HTML", lastSaveResult.readerCleanedHtml ? "Enabled" : "Disabled"));
   }
 
   if (lastSaveResult.titleUpdateApplied) {
-    rows.push(renderRow("Title update", "Applied after save"));
+    technicalRows.push(renderRow("Title update", "Applied after save"));
   } else if (lastSaveResult.titleUpdateError) {
-    rows.push(renderRow("Title update", escapeHtml(lastSaveResult.titleUpdateError)));
+    technicalRows.push(renderRow("Title update", escapeHtml(lastSaveResult.titleUpdateError)));
   }
 
   if (lastSaveResult.contentRootSelector) {
-    rows.push(renderRow("Content root", escapeHtml(lastSaveResult.contentRootSelector)));
+    technicalRows.push(renderRow("Content root", escapeHtml(lastSaveResult.contentRootSelector)));
   }
 
   if (lastSaveResult.articleSelector) {
-    rows.push(renderRow("Article root", escapeHtml(lastSaveResult.articleSelector)));
+    technicalRows.push(renderRow("Article root", escapeHtml(lastSaveResult.articleSelector)));
   }
 
   if (typeof lastSaveResult.detectedCjkCount === "number") {
-    rows.push(renderRow("Detected CJK", String(lastSaveResult.detectedCjkCount)));
+    technicalRows.push(renderRow("Detected CJK", String(lastSaveResult.detectedCjkCount)));
   }
 
   if (typeof lastSaveResult.contentBlockCount === "number") {
-    rows.push(renderRow("Blocks kept", String(lastSaveResult.contentBlockCount)));
+    technicalRows.push(renderRow("Blocks kept", String(lastSaveResult.contentBlockCount)));
   }
 
   if (lastSaveResult.previewText) {
-    rows.push(renderRow("Preview", escapeHtml(lastSaveResult.previewText)));
+    technicalRows.push(renderRow("Preview", escapeHtml(lastSaveResult.previewText)));
   }
 
   if (lastSaveResult.usedFallbackUrl) {
-    rows.push(renderRow("URL fallback", "Fragment-based retry was used."));
+    technicalRows.push(renderRow("URL fallback", "Fragment-based retry was used."));
   }
 
   if (lastSaveResult.error) {
-    rows.push(renderRow("Error", escapeHtml(lastSaveResult.error)));
+    technicalRows.push(renderRow("Error", escapeHtml(lastSaveResult.error)));
   }
 
   const readerLink = lastSaveResult.readerDocumentUrl
@@ -268,6 +270,28 @@ function renderLastSave(lastSaveResult) {
     : "";
   const debugText = buildDebugText(lastSaveResult);
   const detailsOpen = lastSaveResult.status === "error" ? " open" : "";
+  const factCards = buildFactGrid([
+    {
+      key: "Source",
+      value: lastSaveResult.usedRedirectUrl
+        ? "Redirect fallback"
+        : lastSaveResult.usedSyntheticUrl
+          ? "Synthetic fallback"
+          : "Original URL"
+    },
+    {
+      key: "Title",
+      value: lastSaveResult.displayTitle || lastSaveResult.pageTitle || "—"
+    },
+    {
+      key: "Author",
+      value: lastSaveResult.author || "—"
+    },
+    {
+      key: "Published",
+      value: formatTime(lastSaveResult.publishedDate)
+    }
+  ]);
 
   lastSaveNode.innerHTML = `
     <div class="result-summary">
@@ -281,10 +305,15 @@ function renderLastSave(lastSaveResult) {
       </div>
       ${readerLink}
       <div class="result-meta">Saved ${escapeHtml(formatTime(lastSaveResult.savedAt))}</div>
+      <div class="fact-grid">${factCards}</div>
       <details${detailsOpen}>
-        <summary>Diagnostics</summary>
-        <div class="result-grid">${rows.join("")}</div>
-        <pre class="debug-block">${escapeHtml(debugText)}</pre>
+        <summary>Technical details</summary>
+        <p class="details-note">Expand this only when you need the raw save metadata, Reader source URL, or parsing diagnostics.</p>
+        <div class="result-grid">${technicalRows.join("")}</div>
+        <details>
+          <summary>Raw debug dump</summary>
+          <pre class="debug-block">${escapeHtml(debugText)}</pre>
+        </details>
       </details>
     </div>
   `;
@@ -396,6 +425,15 @@ function renderRow(key, value) {
       <div class="result-value">${value}</div>
     </div>
   `;
+}
+
+function buildFactGrid(items) {
+  return items.map((item) => `
+    <div class="fact-card">
+      <div class="fact-label">${escapeHtml(item.key)}</div>
+      <div class="fact-value">${escapeHtml(item.value || "—")}</div>
+    </div>
+  `).join("");
 }
 
 function escapeHtml(value) {
