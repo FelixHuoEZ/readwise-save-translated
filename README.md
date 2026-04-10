@@ -149,6 +149,7 @@ npm run test:e2e-save
 - [`options.html`](./options.html): settings page
 - [`cloudflare/redirect-worker`](./cloudflare/redirect-worker): optional personal redirect service for fallback source URLs
 - [`docs/requirements.md`](./docs/requirements.md): product requirements in Chinese
+- [`docs/cloudflare-redirect-setup.md`](./docs/cloudflare-redirect-setup.md): Cloudflare redirect service setup and rollout notes
 
 ## Known Limits
 
