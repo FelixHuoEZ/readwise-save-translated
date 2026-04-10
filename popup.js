@@ -2,13 +2,14 @@ const pageTitleNode = document.querySelector("#page-title");
 const pageUrlNode = document.querySelector("#page-url");
 const tokenPill = document.querySelector("#token-pill");
 const pagePill = document.querySelector("#page-pill");
-const modePill = document.querySelector("#mode-pill");
 const articleSaveButton = document.querySelector("#article-save-button");
 const wholePageButton = document.querySelector("#whole-page-button");
 const settingsButton = document.querySelector("#settings-button");
-const copyDebugButton = document.querySelector("#copy-debug-button");
 const saveHintNode = document.querySelector("#save-hint");
 const lastSaveNode = document.querySelector("#last-save");
+const actionsSection = document.querySelector("#actions-section");
+const resultSection = document.querySelector("#result-section");
+const shellNode = document.querySelector(".shell");
 const targetTabId = parseTargetTabId();
 const actionButtonMarkup = new Map([
   [articleSaveButton, articleSaveButton.innerHTML],
@@ -18,24 +19,6 @@ let currentLastSaveResult = null;
 
 settingsButton.addEventListener("click", async () => {
   await chrome.runtime.openOptionsPage();
-});
-
-copyDebugButton.addEventListener("click", async () => {
-  const debugText = buildDebugText(currentLastSaveResult);
-  if (!debugText) {
-    saveHintNode.textContent = "No debug info is available yet.";
-    return;
-  }
-
-  try {
-    await navigator.clipboard.writeText(debugText);
-    copyDebugButton.textContent = "Copied";
-    window.setTimeout(() => {
-      copyDebugButton.textContent = "Copy debug info";
-    }, 1500);
-  } catch {
-    saveHintNode.textContent = "Copy failed. Select the text manually from the details page.";
-  }
 });
 
 articleSaveButton.addEventListener("click", async () => {
@@ -108,11 +91,6 @@ function renderActiveTab(activeTab, config) {
     activeTab?.saveable ? "Page can be saved" : "Page not saveable",
     activeTab?.saveable ? "ok" : "warn"
   );
-  setPill(
-    modePill,
-    "Default URL mode",
-    "ok"
-  );
 
   setActionButtonsDisabled(!config.hasToken || !activeTab?.saveable);
 
@@ -131,11 +109,11 @@ function renderActiveTab(activeTab, config) {
     return;
   }
 
-  saveHintNode.textContent = "Default uses the original URL. Use fallback only if Reader strips the translation.";
+  saveHintNode.textContent = "Default keeps the original URL. Fallback switches to a generated source only if needed.";
 }
 
 function renderLastSave(lastSaveResult) {
-  copyDebugButton.disabled = !lastSaveResult;
+  syncDetailsLayout(lastSaveResult);
 
   if (!lastSaveResult) {
     lastSaveNode.innerHTML = '<p class="empty">No save has been attempted from this extension yet.</p>';
@@ -272,6 +250,11 @@ function renderLastSave(lastSaveResult) {
     : "";
   const debugText = buildDebugText(lastSaveResult);
   const detailsOpen = lastSaveResult.status === "error" ? " open" : "";
+  const copyDebugButtonMarkup = `
+    <div class="details-actions">
+      <button class="ghost-button small" type="button" data-copy-debug>Copy debug</button>
+    </div>
+  `;
   const factCards = buildFactGrid([
     {
       key: "Source",
@@ -310,8 +293,9 @@ function renderLastSave(lastSaveResult) {
       <div class="fact-grid">${factCards}</div>
       <details${detailsOpen}>
         <summary>Technical details</summary>
-        <p class="details-note">Expand this only when you need the raw save metadata, Reader source URL, or parsing diagnostics.</p>
+        <p class="details-note">Open this only when you need save metadata, source strategy, or parsing diagnostics.</p>
         <div class="result-grid">${technicalRows.join("")}</div>
+        ${copyDebugButtonMarkup}
         <details>
           <summary>Raw debug dump</summary>
           <pre class="debug-block">${escapeHtml(debugText)}</pre>
@@ -319,6 +303,13 @@ function renderLastSave(lastSaveResult) {
       </details>
     </div>
   `;
+
+  const copyButton = lastSaveNode.querySelector("[data-copy-debug]");
+  if (copyButton) {
+    copyButton.addEventListener("click", async () => {
+      await copyDebugText(copyButton);
+    });
+  }
 }
 
 function renderFailureState(message) {
@@ -326,10 +317,52 @@ function renderFailureState(message) {
   pageUrlNode.textContent = message;
   setPill(tokenPill, "State error", "error");
   setPill(pagePill, "State error", "error");
-  setPill(modePill, "State error", "error");
   setActionButtonsDisabled(true);
+  syncDetailsLayout(null);
   saveHintNode.textContent = message;
   lastSaveNode.innerHTML = '<p class="empty">Refresh the details page and try again.</p>';
+}
+
+function syncDetailsLayout(lastSaveResult) {
+  if (!shellNode || !actionsSection || !resultSection) {
+    return;
+  }
+
+  const hasLastSaveResult = Boolean(lastSaveResult);
+  const shouldShowActions = !hasLastSaveResult || lastSaveResult.status === "error";
+
+  actionsSection.hidden = !shouldShowActions;
+
+  if (!hasLastSaveResult) {
+    shellNode.insertBefore(actionsSection, resultSection);
+    return;
+  }
+
+  if (shouldShowActions) {
+    shellNode.insertBefore(actionsSection, resultSection);
+    return;
+  }
+
+  shellNode.insertBefore(resultSection, actionsSection);
+}
+
+async function copyDebugText(button) {
+  const debugText = buildDebugText(currentLastSaveResult);
+  if (!debugText) {
+    saveHintNode.textContent = "No debug info is available yet.";
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(debugText);
+    const previousText = button.textContent;
+    button.textContent = "Copied";
+    window.setTimeout(() => {
+      button.textContent = previousText;
+    }, 1500);
+  } catch {
+    saveHintNode.textContent = "Copy failed. Select the text manually from the details page.";
+  }
 }
 
 function setActionButtonsDisabled(disabled) {

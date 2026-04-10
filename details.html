@@ -60,6 +60,10 @@
         backdrop-filter: blur(10px);
       }
 
+      .panel[hidden] {
+        display: none;
+      }
+
       .topbar {
         display: flex;
         align-items: flex-start;
@@ -84,14 +88,6 @@
         line-height: 0.98;
         letter-spacing: -0.03em;
         color: var(--text);
-      }
-
-      .top-note {
-        margin: 8px 14px 0;
-        padding: 0 0 14px;
-        font-size: 12px;
-        line-height: 1.4;
-        color: var(--muted);
       }
 
       .current-panel,
@@ -163,7 +159,7 @@
       }
 
       .strategy-note {
-        margin: 8px 0 0;
+        margin: 6px 0 0;
         font-size: 12px;
         line-height: 1.35;
         color: var(--muted);
@@ -434,6 +430,12 @@
         color: var(--muted);
       }
 
+      .details-actions {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 10px;
+      }
+
       @media (prefers-reduced-motion: reduce) {
         button {
           transition: none;
@@ -452,9 +454,6 @@
             </div>
             <button class="ghost-button small" id="settings-button" type="button">Settings</button>
           </div>
-          <p class="top-note">
-            Use this page only for fallback saves or a closer look at the last result.
-          </p>
         </section>
 
         <section class="panel current-panel">
@@ -466,17 +465,16 @@
           <div class="pill-row">
             <span class="pill" id="token-pill">Token unknown</span>
             <span class="pill" id="page-pill">Page unknown</span>
-            <span class="pill" id="mode-pill">Strategy unknown</span>
           </div>
           <p class="strategy-note" id="save-hint" aria-live="polite"></p>
         </section>
 
-        <section class="panel actions-panel">
+        <section class="panel actions-panel" id="actions-section">
           <div class="action-copy">
             <p class="section-label">Actions</p>
-            <p class="action-title">Choose a save path.</p>
+            <p class="action-title">Try another save path.</p>
             <p class="action-subtitle">
-              Start with default. Use fallback only when Reader drops the translation.
+              Use this only when you need to retry or recover a save.
             </p>
           </div>
           <div class="action-grid">
@@ -493,10 +491,9 @@
           </div>
         </section>
 
-        <section class="panel result-panel">
+        <section class="panel result-panel" id="result-section">
           <div class="result-head">
             <p class="section-label">Last Save</p>
-            <button class="ghost-button small" id="copy-debug-button" type="button">Copy debug</button>
           </div>
           <div id="last-save"></div>
         </section>
