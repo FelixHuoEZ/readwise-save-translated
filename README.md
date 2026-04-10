@@ -55,7 +55,31 @@ Readwise can save rendered browser content, but in practice the final result can
 - Details page
   - Shows the last save result, existing-document detection, links, and debug info.
 
-## Install Locally
+## Install
+
+### Chrome Web Store
+
+The Chrome Web Store listing is currently under review.
+
+### GitHub Releases
+
+You can install the current release manually from GitHub Releases:
+
+- Download the latest `.crx` from the [Releases page](https://github.com/FelixHuoEZ/readwise-save-translated/releases)
+- Open `chrome://extensions`
+- Enable Developer mode
+- Drag the `.crx` file onto the page and confirm the install
+
+If Chrome rejects the `.crx` install, use the release `.zip` instead:
+
+- Download the latest `.zip` from the [Releases page](https://github.com/FelixHuoEZ/readwise-save-translated/releases)
+- Unzip it locally
+- Open `chrome://extensions`
+- Enable Developer mode
+- Click `Load unpacked`
+- Select the extracted folder
+
+### Local development
 
 1. Clone this repository.
 2. Open `chrome://extensions`.
