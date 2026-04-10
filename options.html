@@ -7,13 +7,22 @@
     <style>
       :root {
         color-scheme: light;
-        --bg: #f7f3ea;
-        --panel: #fffdf8;
-        --border: #d9ccb7;
-        --text: #1d1b17;
-        --muted: #6f6658;
-        --accent: #9f3a20;
-        --accent-strong: #7d2713;
+        --bg: #f5f5f4;
+        --panel: #ffffff;
+        --panel-muted: #fafaf9;
+        --border: #e7e5e4;
+        --text: #171717;
+        --muted: #57534e;
+        --muted-soft: #78716c;
+        --accent: #18181b;
+        --accent-strong: #0a0a0a;
+        --accent-soft: #f5efe0;
+        --gold: #b28a18;
+        --success: #166534;
+        --success-bg: #f0fdf4;
+        --error: #b91c1c;
+        --error-bg: #fef2f2;
+        --shadow: 0 24px 60px rgba(23, 23, 23, 0.06);
       }
 
       * {
@@ -23,38 +32,103 @@
       body {
         margin: 0;
         min-height: 100vh;
-        font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
+        font-family: Inter, "Avenir Next", "Segoe UI", sans-serif;
         background:
-          radial-gradient(circle at top left, rgba(159, 58, 32, 0.14), transparent 30%),
-          radial-gradient(circle at bottom right, rgba(133, 103, 57, 0.14), transparent 28%),
+          radial-gradient(circle at top left, rgba(178, 138, 24, 0.08), transparent 28%),
+          radial-gradient(circle at top right, rgba(24, 24, 27, 0.05), transparent 24%),
           var(--bg);
         color: var(--text);
       }
 
       main {
         max-width: 760px;
-        margin: 48px auto;
-        padding: 32px;
+        margin: 40px auto;
+        padding: 24px;
+      }
+
+      .shell {
+        display: grid;
+        gap: 16px;
+      }
+
+      .panel {
         border: 1px solid var(--border);
         border-radius: 20px;
         background: var(--panel);
-        box-shadow: 0 18px 50px rgba(73, 55, 28, 0.08);
+        box-shadow: var(--shadow);
+      }
+
+      .hero {
+        padding: 24px;
+      }
+
+      .eyebrow {
+        margin: 0 0 8px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted-soft);
       }
 
       h1 {
-        margin: 0 0 8px;
-        font-size: 32px;
+        margin: 0;
+        font-size: 30px;
+        line-height: 1;
+        letter-spacing: -0.03em;
       }
 
-      p {
-        margin: 0 0 20px;
+      .hero-copy {
+        margin: 10px 0 0;
+        max-width: 42rem;
         color: var(--muted);
-        line-height: 1.5;
+        line-height: 1.55;
+      }
+
+      .pill-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 14px;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        min-height: 28px;
+        padding: 0 10px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: var(--panel-muted);
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 600;
       }
 
       form {
         display: grid;
-        gap: 18px;
+        gap: 16px;
+      }
+
+      .section {
+        padding: 22px;
+      }
+
+      .section-header {
+        margin-bottom: 14px;
+      }
+
+      .section-title {
+        margin: 0;
+        font-size: 19px;
+        line-height: 1.15;
+        letter-spacing: -0.02em;
+      }
+
+      .section-copy {
+        margin: 8px 0 0;
+        color: var(--muted);
+        line-height: 1.5;
       }
 
       label {
@@ -70,21 +144,30 @@
         width: 100%;
         padding: 12px 14px;
         border: 1px solid var(--border);
-        border-radius: 12px;
+        border-radius: 14px;
         font: inherit;
         color: var(--text);
         background: #fff;
+        transition: border-color 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
+      }
+
+      input:focus,
+      textarea:focus,
+      select:focus {
+        outline: none;
+        border-color: rgba(178, 138, 24, 0.48);
+        box-shadow: 0 0 0 4px rgba(178, 138, 24, 0.12);
       }
 
       textarea {
-        min-height: 88px;
+        min-height: 84px;
         resize: vertical;
       }
 
       .actions {
         display: flex;
         align-items: center;
-        gap: 12px;
+        gap: 14px;
       }
 
       .inline-actions {
@@ -99,14 +182,24 @@
         padding: 12px 18px;
         font: inherit;
         font-weight: 700;
-        color: #fff8f2;
+        color: #fff;
         background: linear-gradient(135deg, var(--accent), var(--accent-strong));
         cursor: pointer;
+        transition: transform 140ms ease, box-shadow 180ms ease, border-color 180ms ease;
+      }
+
+      button:hover {
+        transform: translateY(-1px);
+      }
+
+      button:focus-visible {
+        outline: 2px solid rgba(178, 138, 24, 0.55);
+        outline-offset: 2px;
       }
 
       button.secondary {
-        color: var(--accent-strong);
-        background: transparent;
+        color: var(--text);
+        background: var(--panel-muted);
         border: 1px solid var(--border);
       }
 
@@ -124,78 +217,186 @@
       #status {
         min-height: 20px;
         color: var(--muted);
+        font-size: 13px;
+      }
+
+      #status[data-state="success"] {
+        color: var(--success);
+      }
+
+      #status[data-state="error"] {
+        color: var(--error);
+      }
+
+      details {
+        overflow: hidden;
+      }
+
+      summary {
+        list-style: none;
+        cursor: pointer;
+      }
+
+      summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .advanced-summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 18px 22px;
+      }
+
+      .advanced-summary strong {
+        font-size: 17px;
+        letter-spacing: -0.02em;
+      }
+
+      .advanced-summary span {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .summary-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: var(--panel-muted);
+        color: var(--muted);
+        font-size: 18px;
+        line-height: 1;
+      }
+
+      details[open] .summary-icon {
+        transform: rotate(45deg);
+      }
+
+      .advanced-grid {
+        display: grid;
+        gap: 16px;
+        padding: 0 22px 22px;
+      }
+
+      .config-note {
+        padding: 0 22px 22px;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      @media (max-width: 640px) {
+        main {
+          padding: 14px;
+        }
+
+        .actions,
+        .inline-actions {
+          flex-direction: column;
+          align-items: stretch;
+        }
       }
     </style>
   </head>
   <body>
     <main>
-      <h1>Readwise Save Translated</h1>
-      <p>
-        Store your Readwise access token locally, then left click the extension icon on any translated page to save with the original article URL.
-        Right click the icon when you need the default action again, the fallback source URL, or the details page.
-      </p>
-
-      <p>
-        If this page is inconvenient, you can edit
-        <code>config.local.json</code>
-        in the project folder and reload the unpacked extension instead.
-      </p>
-
-      <form id="settings-form">
-        <label for="token">
-          Readwise access token
-          <input id="token" name="token" type="password" autocomplete="off" spellcheck="false">
-        </label>
-
-        <label for="title-prefix">
-          Title prefix (optional)
-          <input id="title-prefix" name="title-prefix" type="text" placeholder="">
-        </label>
-
-        <label for="tags">
-          Optional tags (comma separated)
-          <textarea id="tags" name="tags" placeholder=""></textarea>
-        </label>
-
-        <label for="capture-mode">
-          Capture mode
-          <select id="capture-mode" name="capture-mode">
-            <option value="html">Full HTML snapshot (preferred)</option>
-            <option value="text">Experimental text fallback</option>
-          </select>
-        </label>
-
-        <label for="redirect-base-url">
-          Redirect base URL (optional)
-          <div class="inline-actions">
-            <input id="redirect-base-url" name="redirect-base-url" type="url" placeholder="https://go.example.com">
-            <button id="restore-redirect-base-url" class="secondary" type="button">Restore default domain</button>
+      <div class="shell">
+        <section class="panel hero">
+          <p class="eyebrow">Readwise Save Translated</p>
+          <h1>Settings</h1>
+          <p class="hero-copy">
+            Add your Readwise token, then save translated pages with one click. Everything here stays local unless you explicitly trigger a save.
+          </p>
+          <div class="pill-row">
+            <span class="pill">Stored locally</span>
+            <span class="pill">Sent only on save</span>
+            <span class="pill">Fallback domain supported</span>
           </div>
-          <span class="field-note">This field defaults to the built-in jump-back domain. Change it only if you run your own redirect service.</span>
-        </label>
+        </section>
 
-        <label for="redirect-signing-secret">
-          Redirect signing secret (optional)
-          <input id="redirect-signing-secret" name="redirect-signing-secret" type="password" autocomplete="off" spellcheck="false" placeholder="Set the same secret in your Cloudflare Worker">
-          <span class="field-note">Keep this local. Do not bundle it into a public extension package.</span>
-        </label>
+        <form id="settings-form">
+          <section class="panel section">
+            <div class="section-header">
+              <h2 class="section-title">Basic setup</h2>
+              <p class="section-copy">
+                This is the only field required for normal saves. Get a token from
+                <a href="https://readwise.io/access_token" target="_blank" rel="noreferrer">readwise.io/access_token</a>.
+              </p>
+            </div>
 
-        <div class="actions">
-          <button type="submit">Save settings</button>
-          <span id="status" aria-live="polite"></span>
-        </div>
-      </form>
+            <label for="token">
+              Readwise access token
+              <input id="token" name="token" type="password" autocomplete="off" spellcheck="false">
+            </label>
 
-      <p id="config-source"></p>
+            <div class="actions" style="margin-top:16px;">
+              <button type="submit">Save settings</button>
+              <span id="status" aria-live="polite" role="alert"></span>
+            </div>
+          </section>
 
-      <p>
-        Create a token at
-        <a href="https://readwise.io/access_token" target="_blank" rel="noreferrer">readwise.io/access_token</a>.
-      </p>
+          <details class="panel">
+            <summary class="advanced-summary">
+              <div>
+                <strong>Advanced</strong>
+                <span>Redirect domain, capture mode, tags, and title overrides</span>
+              </div>
+              <span class="summary-icon">+</span>
+            </summary>
 
-      <p>
-        Fallback saves can use the built-in jump-back domain, or your own redirect domain if you override it here.
-      </p>
+            <div class="advanced-grid">
+              <label for="redirect-base-url">
+                Redirect base URL
+                <div class="inline-actions">
+                  <input id="redirect-base-url" name="redirect-base-url" type="url" placeholder="https://go.example.com">
+                  <button id="restore-redirect-base-url" class="secondary" type="button">Restore default domain</button>
+                </div>
+                <span class="field-note">Fallback links use this domain only when a redirect signing secret is also configured.</span>
+              </label>
+
+              <label for="redirect-signing-secret">
+                Redirect signing secret
+                <input id="redirect-signing-secret" name="redirect-signing-secret" type="password" autocomplete="off" spellcheck="false" placeholder="Set the same secret in your redirect worker">
+                <span class="field-note">Keep this local. Do not bundle it into a public extension package.</span>
+              </label>
+
+              <label for="capture-mode">
+                Capture mode
+                <select id="capture-mode" name="capture-mode">
+                  <option value="html">Full HTML snapshot (preferred)</option>
+                  <option value="text">Experimental text fallback</option>
+                </select>
+              </label>
+
+              <label for="title-prefix">
+                Title prefix (optional)
+                <input id="title-prefix" name="title-prefix" type="text" placeholder="">
+              </label>
+
+              <label for="tags">
+                Optional tags (comma separated)
+                <textarea id="tags" name="tags" placeholder=""></textarea>
+              </label>
+            </div>
+
+            <p class="config-note" id="config-source"></p>
+          </details>
+        </form>
+
+        <section class="panel section">
+          <div class="section-header">
+            <h2 class="section-title">Local config fallback</h2>
+            <p class="section-copy">
+              If you prefer not to use this page, you can edit <code>config.local.json</code> in the project folder and reload the unpacked extension.
+            </p>
+          </div>
+        </section>
+      </div>
     </main>
 
     <script src="options.js"></script>

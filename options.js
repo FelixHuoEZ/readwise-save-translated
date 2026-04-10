@@ -16,6 +16,12 @@ void loadSettings();
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
 
+  const validationError = validateForm();
+  if (validationError) {
+    setStatus(validationError, "error");
+    return;
+  }
+
   const titlePrefix = titlePrefixInput.value;
   const defaultTags = tagsInput.value
     .split(",")
@@ -31,20 +37,12 @@ form.addEventListener("submit", async (event) => {
     redirectSigningSecret: redirectSigningSecretInput.value.trim()
   });
 
-  statusNode.textContent = "Saved.";
-
-  window.setTimeout(() => {
-    statusNode.textContent = "";
-  }, 2500);
+  setStatus("Saved.", "success");
 });
 
 restoreRedirectBaseUrlButton.addEventListener("click", () => {
   redirectBaseUrlInput.value = DEFAULT_REDIRECT_BASE_URL;
-  statusNode.textContent = "Default redirect domain restored.";
-
-  window.setTimeout(() => {
-    statusNode.textContent = "";
-  }, 2500);
+  setStatus("Default redirect domain restored.", "success");
 });
 
 async function loadSettings() {
@@ -94,6 +92,36 @@ async function loadSettings() {
   } else {
     configSourceNode.textContent = "The redirect domain field defaults to the built-in jump-back domain. Change it only if you run your own redirect service.";
   }
+}
+
+function validateForm() {
+  const redirectBaseUrl = redirectBaseUrlInput.value.trim();
+
+  if (!redirectBaseUrl) {
+    return "Redirect base URL cannot be empty. Restore the default domain or enter your own.";
+  }
+
+  try {
+    const url = new URL(redirectBaseUrl);
+    if (!/^https?:$/i.test(url.protocol)) {
+      return "Redirect base URL must use http or https.";
+    }
+  } catch {
+    return "Redirect base URL is not a valid URL.";
+  }
+
+  return "";
+}
+
+function setStatus(message, state = "") {
+  statusNode.textContent = message;
+  statusNode.dataset.state = state;
+
+  window.clearTimeout(setStatus.timeoutId);
+  setStatus.timeoutId = window.setTimeout(() => {
+    statusNode.textContent = "";
+    statusNode.dataset.state = "";
+  }, 2500);
 }
 
 async function loadFileSettings() {

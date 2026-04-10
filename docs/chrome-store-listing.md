@@ -17,7 +17,7 @@ Use the fallback source URL when Readwise cleans the saved document back to Engl
 
 Key features:
 - Left click to save immediately
-- Right click for default save, fallback source URL, and details
+- Right click for settings, default save, fallback source URL, and details
 - No site-specific parser
 - Uses Readwise clean HTML
 - Preserves translated DOM content when the translator writes back into the page
