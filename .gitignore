@@ -5,5 +5,10 @@ logs/
 .tmp-chrome-profile-*/
 .tmp-chrome-profile-debug/
 .tmp-chrome-profile-fixed/
+.tmp-cf-clean-profile/
 config.local.json
 dist/
+.wrangler/
+.cloudflare.env.local
+.cloudflare-api-token
+.cloudflare-account-id

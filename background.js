@@ -1,3 +1,8 @@
+import {
+  buildSignedRedirectUrl,
+  normalizeRedirectBaseUrl
+} from "./lib/redirect-url.js";
+
 const SAVE_ENDPOINT = "https://readwise.io/api/v3/save/";
 const FILE_CONFIG_PATH = "config.local.json";
 const LEGACY_TITLE_PREFIX = "[ZH] ";
@@ -6,13 +11,12 @@ const LEGACY_DEFAULT_TAGS = ["translated", "snapshot", "lang:zh", "chrome-extens
 const DEFAULT_TAGS = [];
 const DEFAULT_CAPTURE_MODE = "html";
 const DEFAULT_HTML_SCOPE = "whole-page";
-const BADGE_RESET_DELAY_MS = 5000;
 const LAST_SAVE_RESULT_KEY = "lastSaveResult";
 const TAB_ACTION_STATES_KEY = "tabActionStates";
 const DETAILS_MENU_ID = "open-details";
 const DEFAULT_SAVE_MENU_ID = "save-original-default";
 const SYNTHETIC_FALLBACK_MENU_ID = "save-synthetic-fallback";
-const DEFAULT_ACTION_TITLE = "Left click: save with original URL. Right click: default save, synthetic fallback, or open details.";
+const DEFAULT_ACTION_TITLE = "Left click: save with original URL. Right click: default save, fallback source URL, or open details.";
 const DEFAULT_ACTION_ICON_PATHS = {
   16: "assets/icon-16.png",
   32: "assets/icon-32.png"
@@ -31,7 +35,9 @@ chrome.runtime.onInstalled.addListener(async () => {
     "readwiseToken",
     "titlePrefix",
     "defaultTags",
-    "captureMode"
+    "captureMode",
+    "redirectBaseUrl",
+    "redirectSigningSecret"
   ]);
 
   const updates = {};
@@ -172,10 +178,14 @@ async function getPopupState(targetTabId = null) {
       titlePrefix: settings.titlePrefix,
       defaultTags: settings.defaultTags,
       captureMode: settings.captureMode,
+      redirectBaseUrl: settings.redirectBaseUrl,
+      hasRedirectSigningSecret: Boolean(settings.redirectSigningSecret),
       tokenSource: settings.sources.token,
       titlePrefixSource: settings.sources.titlePrefix,
       tagsSource: settings.sources.defaultTags,
-      captureModeSource: settings.sources.captureMode
+      captureModeSource: settings.sources.captureMode,
+      redirectBaseUrlSource: settings.sources.redirectBaseUrl,
+      redirectSigningSecretSource: settings.sources.redirectSigningSecret
     },
     lastSaveResult: settings.lastSaveResult
   };
@@ -195,7 +205,7 @@ async function ensureContextMenus() {
   });
   await chrome.contextMenus.create({
     id: SYNTHETIC_FALLBACK_MENU_ID,
-    title: "Save with synthetic URL fallback",
+    title: "Save with fallback source URL",
     contexts: ["action"]
   });
 }
@@ -275,7 +285,9 @@ async function performSave(tab, overrides = {}) {
       }
 
       const useSyntheticUrl = overrides?.useSyntheticUrl === true;
-      const primarySourceUrl = useSyntheticUrl ? buildSyntheticUrl(snapshot.url) : snapshot.url;
+      const primarySourceUrl = useSyntheticUrl
+        ? await buildFallbackSourceUrl(snapshot.url, settings)
+        : snapshot.url;
       const primarySaveRequest = buildSavePayload(snapshot, settings, primarySourceUrl, { useSyntheticUrl });
       let saveResult = await saveToReadwise(primarySaveRequest.payload, settings.readwiseToken);
       let usedFallbackUrl = false;
@@ -283,6 +295,7 @@ async function performSave(tab, overrides = {}) {
       let existingDocumentUrl = null;
       let existingDocumentId = null;
       let saveRequest = primarySaveRequest;
+      let usedRedirectUrl = isRedirectFallbackUrl(primarySourceUrl, settings.redirectBaseUrl);
 
       if (saveResult.status === 200) {
         if (!useSyntheticUrl) {
@@ -292,12 +305,13 @@ async function performSave(tab, overrides = {}) {
         }
 
         const retrySourceUrl = useSyntheticUrl
-          ? buildSyntheticUrl(snapshot.url)
+          ? await buildFallbackSourceUrl(snapshot.url, settings)
           : addTranslatedFragment(snapshot.url);
         const fallbackSaveRequest = buildSavePayload(snapshot, settings, retrySourceUrl, { useSyntheticUrl });
         saveRequest = fallbackSaveRequest;
         saveResult = await saveToReadwise(fallbackSaveRequest.payload, settings.readwiseToken);
         usedFallbackUrl = true;
+        usedRedirectUrl = isRedirectFallbackUrl(retrySourceUrl, settings.redirectBaseUrl);
       }
 
       const savedDocumentId = saveResult.body?.id ?? null;
@@ -346,6 +360,7 @@ async function performSave(tab, overrides = {}) {
         titleUpdateApplied,
         titleUpdateError,
         usedSyntheticUrl: useSyntheticUrl,
+        usedRedirectUrl,
         usedFallbackUrl,
         status: "success"
       };
@@ -378,6 +393,7 @@ async function performSave(tab, overrides = {}) {
       existingDocumentId: null,
       originalTitle: null,
       translatedTitle: null,
+      usedRedirectUrl: false,
       author: null,
       publishedDate: null,
       captureMode: null,
@@ -1271,7 +1287,14 @@ function buildSavePayload(snapshot, settings, sourceUrl = snapshot.url, options 
 }
 
 async function loadResolvedSettings(includeLastSaveResult) {
-  const storageKeys = ["readwiseToken", "titlePrefix", "defaultTags", "captureMode"];
+  const storageKeys = [
+    "readwiseToken",
+    "titlePrefix",
+    "defaultTags",
+    "captureMode",
+    "redirectBaseUrl",
+    "redirectSigningSecret"
+  ];
   if (includeLastSaveResult) {
     storageKeys.push(LAST_SAVE_RESULT_KEY);
   }
@@ -1290,6 +1313,10 @@ async function loadResolvedSettings(includeLastSaveResult) {
     captureMode: normalizeCaptureMode(storageSettings.captureMode)
       ?? normalizeCaptureMode(fileSettings.captureMode)
       ?? DEFAULT_CAPTURE_MODE,
+    redirectBaseUrl: normalizeRedirectBaseUrlValue(storageSettings.redirectBaseUrl)
+      ?? normalizeRedirectBaseUrlValue(fileSettings.redirectBaseUrl)
+      ?? "",
+    redirectSigningSecret: storageSettings.redirectSigningSecret || fileSettings.redirectSigningSecret || "",
     lastSaveResult: includeLastSaveResult ? storageSettings[LAST_SAVE_RESULT_KEY] ?? null : null,
     sources: {
       token: storageSettings.readwiseToken ? "extension" : fileSettings.readwiseToken ? "file" : null,
@@ -1302,6 +1329,16 @@ async function loadResolvedSettings(includeLastSaveResult) {
       captureMode: storageSettings.captureMode != null
         ? "extension"
         : fileSettings.captureMode != null
+          ? "file"
+          : "default",
+      redirectBaseUrl: storageSettings.redirectBaseUrl != null
+        ? "extension"
+        : fileSettings.redirectBaseUrl != null
+          ? "file"
+          : "default",
+      redirectSigningSecret: storageSettings.redirectSigningSecret
+        ? "extension"
+        : fileSettings.redirectSigningSecret
           ? "file"
           : "default"
     }
@@ -1340,6 +1377,19 @@ function areSameTags(left, right) {
 
 function normalizeCaptureMode(value) {
   return value === "html" || value === "text" ? value : null;
+}
+
+function normalizeRedirectBaseUrlValue(value) {
+  const trimmed = String(value || "").trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  try {
+    return normalizeRedirectBaseUrl(trimmed);
+  } catch {
+    return null;
+  }
 }
 
 function normalizeHtmlScope(value) {
@@ -1512,6 +1562,32 @@ function addTranslatedFragment(url) {
   return `${url}#${fragment}`;
 }
 
+async function buildFallbackSourceUrl(originalUrl, settings) {
+  const redirectBaseUrl = settings?.redirectBaseUrl || "";
+  const redirectSigningSecret = settings?.redirectSigningSecret || "";
+
+  if (redirectBaseUrl && redirectSigningSecret) {
+    return buildSignedRedirectUrl(redirectBaseUrl, originalUrl, redirectSigningSecret);
+  }
+
+  return buildSyntheticUrl(originalUrl);
+}
+
+function isRedirectFallbackUrl(sourceUrl, redirectBaseUrl) {
+  const normalizedBaseUrl = normalizeRedirectBaseUrlValue(redirectBaseUrl);
+  if (!sourceUrl || !normalizedBaseUrl) {
+    return false;
+  }
+
+  try {
+    const source = new URL(sourceUrl);
+    const base = new URL(normalizedBaseUrl);
+    return source.origin === base.origin && source.pathname === "/open";
+  } catch {
+    return false;
+  }
+}
+
 function buildSyntheticUrl(originalUrl) {
   const timestamp = Date.now();
   const hash = simpleHash(originalUrl);
@@ -1566,9 +1642,7 @@ async function withBadge(tabId, text, color, work) {
     return await work();
   } finally {
     if (tabId) {
-      setTimeout(() => {
-        chrome.action.setBadgeText({ tabId, text: "" }).catch(() => {});
-      }, BADGE_RESET_DELAY_MS);
+      await clearBadge(tabId);
     }
   }
 }
@@ -1706,6 +1780,10 @@ async function isTabCurrentlyActive(tabId) {
 
 function buildSuccessActionTitle(resultSummary) {
   if (resultSummary.usedSyntheticUrl) {
+    if (resultSummary.usedRedirectUrl) {
+      return "Saved translated fallback version with your redirect source URL.";
+    }
+
     return "Saved translated fallback version with a synthetic Reader source URL.";
   }
 

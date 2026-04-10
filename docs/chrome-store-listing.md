@@ -13,15 +13,15 @@ Save translated pages to Readwise Reader without writing a site-specific parser.
 Readwise Save Translated saves the translated version of the current page to Readwise Reader.
 
 Use the default action when you want to preserve the original article URL as the Reader source link.
-Use the synthetic fallback when Readwise cleans the saved document back to English.
+Use the fallback source URL when Readwise cleans the saved document back to English.
 
 Key features:
 - Left click to save immediately
-- Right click for default save, synthetic fallback, and details
+- Right click for default save, fallback source URL, and details
 - No site-specific parser
 - Uses Readwise clean HTML
 - Preserves translated DOM content when the translator writes back into the page
-- Synthetic fallback injects an Open original article link into the saved document
+- The fallback path injects an Open original article link into the saved document
 - Per-tab success and error badges on the toolbar icon
 
 ## Suggested URLs

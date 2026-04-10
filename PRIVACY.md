@@ -12,7 +12,7 @@ The extension may handle the following data:
 - The current page URL
 - The current page HTML snapshot
 - Visible page title, translated title, author, and published date when available
-- A synthetic fallback URL when you choose the fallback save action
+- A fallback source URL when you choose the fallback save action
 
 ## How Data Is Used
 
@@ -25,6 +25,7 @@ The extension uses this data only to:
 ## Where Data Is Stored
 
 - Your Readwise token and extension settings are stored locally in Chrome extension storage.
+- If you configure a personal redirect service, its base URL and signing secret are also stored locally.
 - If you use `config.local.json`, that file stays on your machine.
 - The extension does not operate its own backend service.
 

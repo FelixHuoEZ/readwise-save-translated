@@ -1,0 +1,15 @@
+{
+  "name": "readwise-save-translated-redirect",
+  "main": "src/index.js",
+  "compatibility_date": "2026-04-10",
+  "workers_dev": false,
+  "routes": [
+    {
+      "pattern": "go.example.com",
+      "custom_domain": true
+    }
+  ],
+  "observability": {
+    "enabled": true
+  }
+}

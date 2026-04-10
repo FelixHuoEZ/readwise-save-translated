@@ -3,6 +3,8 @@ const tokenInput = document.querySelector("#token");
 const titlePrefixInput = document.querySelector("#title-prefix");
 const tagsInput = document.querySelector("#tags");
 const captureModeInput = document.querySelector("#capture-mode");
+const redirectBaseUrlInput = document.querySelector("#redirect-base-url");
+const redirectSigningSecretInput = document.querySelector("#redirect-signing-secret");
 const statusNode = document.querySelector("#status");
 const configSourceNode = document.querySelector("#config-source");
 const FILE_CONFIG_PATH = "config.local.json";
@@ -22,7 +24,9 @@ form.addEventListener("submit", async (event) => {
     readwiseToken: tokenInput.value.trim(),
     titlePrefix,
     defaultTags,
-    captureMode: captureModeInput.value === "text" ? "text" : "html"
+    captureMode: captureModeInput.value === "text" ? "text" : "html",
+    redirectBaseUrl: redirectBaseUrlInput.value.trim(),
+    redirectSigningSecret: redirectSigningSecretInput.value.trim()
   });
 
   statusNode.textContent = "Saved.";
@@ -38,7 +42,9 @@ async function loadSettings() {
       "readwiseToken",
       "titlePrefix",
       "defaultTags",
-      "captureMode"
+      "captureMode",
+      "redirectBaseUrl",
+      "redirectSigningSecret"
     ]),
     loadFileSettings()
   ]);
@@ -55,17 +61,23 @@ async function loadSettings() {
     : fileSettings.captureMode === "html" || fileSettings.captureMode === "text"
       ? fileSettings.captureMode
       : "html";
+  const resolvedRedirectBaseUrl = settings.redirectBaseUrl ?? fileSettings.redirectBaseUrl ?? "";
+  const resolvedRedirectSigningSecret = settings.redirectSigningSecret || fileSettings.redirectSigningSecret || "";
 
   tokenInput.value = resolvedToken;
   titlePrefixInput.value = resolvedTitlePrefix;
   tagsInput.value = resolvedTags.join(", ");
   captureModeInput.value = resolvedCaptureMode;
+  redirectBaseUrlInput.value = resolvedRedirectBaseUrl;
+  redirectSigningSecretInput.value = resolvedRedirectSigningSecret;
 
   if (
     fileSettings.readwiseToken ||
     fileSettings.titlePrefix ||
     Array.isArray(fileSettings.defaultTags) ||
-    fileSettings.captureMode
+    fileSettings.captureMode ||
+    fileSettings.redirectBaseUrl ||
+    fileSettings.redirectSigningSecret
   ) {
     configSourceNode.textContent = "File config detected. Reload the extension after editing config.local.json.";
   } else {

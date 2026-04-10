@@ -38,9 +38,9 @@ articleSaveButton.addEventListener("click", async () => {
   await runSave({
     button: articleSaveButton,
     loadingLabel: "Saving…",
-    idleLabel: "Use synthetic URL fallback",
-    successHint: "Saved to Readwise with synthetic URL fallback.",
-    hint: "Saving with a synthetic Reader source URL so Readwise keeps the translated HTML, then adding an original-article link into the saved document.",
+    idleLabel: "Use fallback source URL",
+    successHint: "Saved to Readwise with the fallback source URL.",
+    hint: "Saving with the fallback source URL so Readwise keeps the translated HTML, then adding an original-article link into the saved document.",
     message: {
       type: "save-active-tab",
       tabId: targetTabId,
@@ -124,7 +124,12 @@ function renderActiveTab(activeTab, config) {
     return;
   }
 
-  saveHintNode.textContent = "Left click uses the original page URL. If Reader collapses the saved content back to English, use the synthetic URL fallback here or from the action right-click menu.";
+  if (config.redirectBaseUrl && config.hasRedirectSigningSecret) {
+    saveHintNode.textContent = `Left click uses the original page URL. If Reader collapses the saved content back to English, fallback saves will use ${config.redirectBaseUrl}.`;
+    return;
+  }
+
+  saveHintNode.textContent = "Left click uses the original page URL. If Reader collapses the saved content back to English, use the fallback source URL here or from the action right-click menu.";
 }
 
 function renderLastSave(lastSaveResult) {
@@ -143,7 +148,9 @@ function renderLastSave(lastSaveResult) {
     rows.push(renderRow("Reader source URL", escapeHtml(lastSaveResult.readerSourceUrl)));
   }
 
-  if (lastSaveResult.usedSyntheticUrl) {
+  if (lastSaveResult.usedRedirectUrl) {
+    rows.push(renderRow("Source strategy", "Redirect fallback"));
+  } else if (lastSaveResult.usedSyntheticUrl) {
     rows.push(renderRow("Source strategy", "Synthetic URL fallback"));
   } else {
     rows.push(renderRow("Source strategy", "Original URL"));
@@ -250,8 +257,11 @@ function renderLastSave(lastSaveResult) {
   const fallbackBadge = lastSaveResult.usedFallbackUrl
     ? '<span class="scope-badge">url fallback</span>'
     : "";
-  const syntheticBadge = lastSaveResult.usedSyntheticUrl
+  const syntheticBadge = lastSaveResult.usedSyntheticUrl && !lastSaveResult.usedRedirectUrl
     ? '<span class="scope-badge">synthetic fallback</span>'
+    : "";
+  const redirectBadge = lastSaveResult.usedRedirectUrl
+    ? '<span class="scope-badge">redirect fallback</span>'
     : "";
   const existingBadge = lastSaveResult.existingDocumentDetected
     ? '<span class="scope-badge">existing doc</span>'
@@ -264,6 +274,7 @@ function renderLastSave(lastSaveResult) {
       <div class="status-line">
         <span class="status-badge ${statusClass}">${escapeHtml(formatStatus(lastSaveResult))}</span>
         ${scopeBadge}
+        ${redirectBadge}
         ${syntheticBadge}
         ${fallbackBadge}
         ${existingBadge}
@@ -307,6 +318,7 @@ function buildDebugText(lastSaveResult) {
     `readerDocumentUrl: ${lastSaveResult.readerDocumentUrl || ""}`,
     `readerSourceUrl: ${lastSaveResult.readerSourceUrl || ""}`,
     `usedSyntheticUrl: ${String(lastSaveResult.usedSyntheticUrl ?? false)}`,
+    `usedRedirectUrl: ${String(lastSaveResult.usedRedirectUrl ?? false)}`,
     `existingDocumentDetected: ${String(lastSaveResult.existingDocumentDetected ?? false)}`,
     `existingDocumentUrl: ${lastSaveResult.existingDocumentUrl || ""}`,
     `pageTitle: ${lastSaveResult.pageTitle || ""}`,
@@ -351,6 +363,10 @@ function setPill(node, text, state) {
 
 function formatStatus(result) {
   if (result.status === "success") {
+    if (result.usedRedirectUrl) {
+      return "Saved with redirect fallback";
+    }
+
     if (result.usedSyntheticUrl) {
       return "Saved with synthetic fallback";
     }

@@ -2,9 +2,11 @@
   "name": "readwise-save-translated",
   "private": true,
   "scripts": {
-    "test:e2e-save": "node scripts/e2e-save-test.mjs"
+    "test:e2e-save": "node scripts/e2e-save-test.mjs",
+    "deploy:redirect-worker": "npx wrangler deploy --config cloudflare/redirect-worker/wrangler.jsonc"
   },
   "devDependencies": {
-    "playwright": "^1.59.1"
+    "playwright": "^1.59.1",
+    "wrangler": "^4.81.1"
   }
 }

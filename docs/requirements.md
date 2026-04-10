@@ -19,7 +19,9 @@
 - 优先把“当前页面的 HTML 快照”交给 Readwise 自己清洗。
 - 扩展只允许使用非常轻量的通用范围收缩策略，例如直接复用页面现成的 `article` 元素。
 - 默认路径优先保留 Readwise 的原生 source-link 行为。
-- synthetic URL 方案是 fallback，只在默认路径把内容清洗回英文时使用。
+- fallback source URL 方案只在默认路径把内容清洗回英文时使用。
+- 如果用户配置了个人 redirect 服务，fallback source URL 应优先使用 redirect URL。
+- 如果用户没有配置 redirect 服务，fallback source URL 再退回 synthetic URL。
 - 整个产品方向是“保存翻译后的页面状态”，不是“重新抓取原始 URL 并重新翻译”。
 - 如果翻译插件没有把中文写入真实 DOM，而只是视觉覆盖，那么本项目的保存效果不保证可用。
 
@@ -39,8 +41,8 @@
 当默认保存结果不理想时：
 
 1. 用户右键扩展图标
-2. 直接选择 synthetic URL fallback，或者打开详情页
-3. 需要时手动触发 synthetic URL fallback
+2. 直接选择 fallback source URL，或者打开详情页
+3. 需要时手动触发 fallback source URL
 4. 查看 Reader 链接、existing doc 信息和调试信息
 
 ## 4. 功能需求
@@ -52,13 +54,14 @@
 - 右键扩展 action 时，应至少提供：
   - 打开详情页
   - Save with original URL (default)
-  - synthetic URL fallback
+  - fallback source URL
 - 详情页用于 fallback、结果查看和调试，不应成为主流程入口。
 
 ### 4.2 保存策略
 
 - 默认保存策略使用原始页面 URL 作为 Reader source URL。
-- fallback 保存策略使用 synthetic URL 作为 Reader source URL。
+- fallback 保存策略优先使用用户配置的 redirect URL 作为 Reader source URL。
+- 如果未配置 redirect 服务，则退回 synthetic URL 作为 Reader source URL。
 - 两条保存路径都必须使用 `should_clean_html: true`。
 - 扩展必须将当前页面在翻译完成后的 HTML 快照提交给 Readwise Reader Save API。
 - 扩展必须保留回到原始文章 URL 的路径。
@@ -66,19 +69,20 @@
 ### 4.3 范围策略
 
 - `whole-page` 模式使用完整页面 HTML。
-- synthetic fallback 路径允许使用当前页面现成的 `article` 节点，作为更轻的正文范围。
-- synthetic fallback 不能把 `article` 裸包进一个极简 HTML 壳子里。
-- synthetic fallback 必须尽量保留原页面 `head` 上下文，只把 `body` 收窄到当前 `article` 节点。
+- fallback source URL 路径允许使用当前页面现成的 `article` 节点，作为更轻的正文范围。
+- fallback source URL 不能把 `article` 裸包进一个极简 HTML 壳子里。
+- fallback source URL 必须尽量保留原页面 `head` 上下文，只把 `body` 收窄到当前 `article` 节点。
 - 不允许为了提高命中率而引入站点专用 DOM 规则。
 - 不允许把“通用轻量 scope”逐步演化成“隐形 parser 系统”。
 
 ### 4.4 URL 策略
 
 - 首次保存时，优先使用原始页面 URL 作为 Reader source URL。
-- 如果默认路径效果不理想，fallback 路径应直接使用 synthetic URL，而不是继续依赖原始 URL。
-- synthetic URL 应足够唯一，避免被 Reader 识别为原始文章 URL。
-- 使用 synthetic URL 时，不能再依赖 Reader 自带 source link 回到原网页。
+- 如果默认路径效果不理想，fallback 路径应直接使用 fallback source URL，而不是继续依赖原始 URL。
+- redirect URL 与 synthetic URL 都应足够唯一，避免被 Reader 识别为原始文章 URL。
+- 使用 fallback source URL 时，不能完全依赖 Reader 自带 source link 回到原网页。
 - 因此 fallback 文档正文中必须插入一个明确的原文链接。
+- redirect 服务的签名 secret 不能硬编码在公开扩展包里，只能由用户本地配置。
 
 ### 4.5 标题策略
 
@@ -115,7 +119,7 @@
 - 默认不添加任何 tags。
 - 只有用户显式配置时，才附带 tags。
 - 默认原始 URL 保存路径不写 document note。
-- synthetic fallback 路径的 document note 只保留原始 URL，不要写入大段诊断信息。
+- fallback source URL 路径的 document note 只保留原始 URL，不要写入大段诊断信息。
 - fallback note 格式应尽量简单，例如：
   - `Original URL: https://...`
 
@@ -189,7 +193,8 @@
   - Translated title
 - 作者与发布时间
 - 是否启用了 Readwise clean HTML
-- 是否使用了 synthetic fallback
+- 是否使用了 fallback source URL
+- 是否使用了 redirect URL
 - 内容根节点、article 根节点、CJK 计数、preview 等轻量调试信息
 - 一键复制 debug 信息
 
@@ -214,17 +219,15 @@
   - 作者和发布时间是否正确
   - icon 成功/失败状态是否符合预期
   - 默认原始 URL 路径是否保留 Reader 原生 source link
-  - synthetic fallback 是否能保住双语内容
-  - synthetic fallback 文档中是否有可点击的原文链接
+  - fallback source URL 是否能保住双语内容
+  - redirect URL 配置后是否真的替代了 `translated.local`
+  - fallback 文档中是否有可点击的原文链接
 
 ## 9. 已知边界与开放问题
 
 - 并不是所有翻译插件都会把翻译写回真实 DOM；如果只是视觉覆盖，本项目可能拿不到中文内容。
 - Readwise 对“直接上传 HTML”这条链路的 URL 去重行为，可能与其他保存路径不同。
-- 当前 fragment fallback 已可用，但未来是否需要 `?query` 或 redirect URL 方案，仍可继续评估。
-- 后续应评估并实现一个轻量 redirect 服务：
-  - synthetic fallback 不再暴露 `translated.local` 之类的假地址
-  - Reader 中保存的 source URL 改为该 redirect 服务地址
-  - 用户点击或复制该链接时，可通过 302/307 跳转回原始页面
-  - 该服务可作为 synthetic URL fallback 的正式替代方案
+- 当前已支持可选的 redirect 服务，用于替代 `translated.local` 之类的假地址。
+- 如果用户没有配置 redirect 服务，扩展仍需保留现有 synthetic URL fallback 作为兜底路径。
+- 当前 redirect 服务设计是“用户自带域名 + 本地配置 secret”，仍然属于高级用法。
 - 如果 Reader 中已存在原始英文文档，删除它之后是否会提升后续 raw HTML 清洗质量，仍然属于待观察问题。

@@ -113,7 +113,7 @@
       <h1>Readwise Save Translated</h1>
       <p>
         Store your Readwise access token locally, then left click the extension icon on any translated page to save with the original article URL.
-        Right click the icon when you need the default action again, the synthetic fallback, or the details page.
+        Right click the icon when you need the default action again, the fallback source URL, or the details page.
       </p>
 
       <p>
@@ -146,6 +146,16 @@
           </select>
         </label>
 
+        <label for="redirect-base-url">
+          Redirect base URL (optional)
+          <input id="redirect-base-url" name="redirect-base-url" type="url" placeholder="https://go.example.com">
+        </label>
+
+        <label for="redirect-signing-secret">
+          Redirect signing secret (optional)
+          <input id="redirect-signing-secret" name="redirect-signing-secret" type="password" autocomplete="off" spellcheck="false" placeholder="Set the same secret in your Cloudflare Worker">
+        </label>
+
         <div class="actions">
           <button type="submit">Save settings</button>
           <span id="status" aria-live="polite"></span>
@@ -157,6 +167,11 @@
       <p>
         Create a token at
         <a href="https://readwise.io/access_token" target="_blank" rel="noreferrer">readwise.io/access_token</a>.
+      </p>
+
+      <p>
+        If you configure a personal redirect service, fallback saves will use your own domain instead of
+        <code>translated.local</code>.
       </p>
     </main>
 

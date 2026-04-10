@@ -10,7 +10,7 @@ This Chrome extension is built for a specific workflow: you open an article, tra
 - Preserves translated content when the translation plugin writes text back into the DOM.
 - Uses Readwise's own `should_clean_html` pipeline instead of a site-specific parser.
 - Keeps the default save path on the original article URL.
-- Adds a synthetic-URL fallback for pages that Readwise cleans back to English.
+- Adds a fallback source URL path for pages that Readwise cleans back to English.
 
 ## How It Works
 
@@ -20,11 +20,12 @@ This Chrome extension is built for a specific workflow: you open an article, tra
 - The extension saves the current page with the original article URL.
 - This keeps Readwise's native source-link behavior.
 
-### Synthetic fallback
+### Fallback source URL
 
 - Right click the extension icon.
-- Choose `Save with synthetic URL fallback`.
-- The extension saves an `article`-scoped HTML snapshot with a synthetic URL.
+- Choose `Save with fallback source URL`.
+- If you configured a personal redirect service, the extension saves an `article`-scoped HTML snapshot with your redirect URL.
+- Otherwise it falls back to a synthetic local URL.
 - The saved Reader document includes an `Open original article` link at the top.
 
 Use the fallback only when the default save path collapses the translated content back to English.
@@ -44,7 +45,7 @@ Readwise can save rendered browser content, but in practice the final result can
   - Right click opens secondary actions.
 - Two save strategies
   - Original URL default
-  - Synthetic URL fallback
+  - Fallback source URL
 - Bilingual title support
   - If the page has visible English and translated Chinese headings, the saved title can include both.
 - Metadata extraction
@@ -78,7 +79,9 @@ Example `config.local.json`:
   "readwiseToken": "YOUR_TOKEN_HERE",
   "titlePrefix": "",
   "defaultTags": [],
-  "captureMode": "html"
+  "captureMode": "html",
+  "redirectBaseUrl": "https://go.example.com",
+  "redirectSigningSecret": ""
 }
 ```
 
@@ -96,9 +99,24 @@ Example `config.local.json`:
 ### If the saved Reader document becomes English-only
 
 1. Right click the extension icon.
-2. Choose `Save with synthetic URL fallback`.
+2. Choose `Save with fallback source URL`.
 3. Open the new Reader document.
 4. Use the `Open original article` link at the top when you need to jump back to the source page.
+
+## Optional: Personal Redirect Service
+
+If you own a domain, you can replace the synthetic fallback URL with your own redirect domain.
+
+This repository includes a Cloudflare Worker at [cloudflare/redirect-worker](./cloudflare/redirect-worker).
+
+Typical setup:
+
+1. Deploy the Worker to `go.example.com`.
+2. Set `Redirect base URL` to `https://go.example.com`.
+3. Set the same signing secret in both the extension and the Worker secret `REDIRECT_SIGNING_SECRET`.
+4. Reload the extension.
+
+The signing secret is intentionally local-only. It should be configured per user, not bundled into the public extension package.
 
 ## Privacy
 
@@ -129,10 +147,11 @@ npm run test:e2e-save
 - [`background.js`](./background.js): save flow, API calls, menu actions, icon state
 - [`details.html`](./details.html): details page UI
 - [`options.html`](./options.html): settings page
+- [`cloudflare/redirect-worker`](./cloudflare/redirect-worker): optional personal redirect service for fallback source URLs
 - [`docs/requirements.md`](./docs/requirements.md): product requirements in Chinese
 
 ## Known Limits
 
 - If the translation plugin only paints translated text visually and does not write it into the DOM, the extension cannot save the translated content reliably.
 - Some pages still depend on how Readwise handles URL canonicalization and HTML cleaning.
-- The synthetic fallback currently uses a synthetic URL plus an in-document original-article link. A redirect service may replace this later.
+- The redirect service is optional. If it is not configured, fallback saves still use a synthetic local URL plus an in-document original-article link.
