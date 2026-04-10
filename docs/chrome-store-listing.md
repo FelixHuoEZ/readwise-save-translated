@@ -30,7 +30,7 @@ Key features:
 - Privacy policy: https://github.com/FelixHuoEZ/readwise-save-translated/blob/main/PRIVACY.md
 
 ## Upload Package
-- `dist/readwise-save-translated-0.1.2.zip`
+- `dist/readwise-save-translated-0.1.3.zip`
 
 ## Listing Assets
 - Screenshot: `store-assets/screenshot-settings.png`

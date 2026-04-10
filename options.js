@@ -7,10 +7,13 @@ const redirectBaseUrlInput = document.querySelector("#redirect-base-url");
 const redirectSigningSecretInput = document.querySelector("#redirect-signing-secret");
 const statusNode = document.querySelector("#status");
 const configSourceNode = document.querySelector("#config-source");
+const versionFooterNode = document.querySelector("#version-footer");
 const FILE_CONFIG_PATH = "config.local.json";
 const DEFAULT_REDIRECT_BASE_URL = "";
+const EXTENSION_VERSION = chrome.runtime.getManifest().version;
 
 void loadSettings();
+renderVersionFooter();
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -137,4 +140,12 @@ async function loadFileSettings() {
   } catch {
     return {};
   }
+}
+
+function renderVersionFooter() {
+  if (!versionFooterNode) {
+    return;
+  }
+
+  versionFooterNode.textContent = `Version ${EXTENSION_VERSION}`;
 }

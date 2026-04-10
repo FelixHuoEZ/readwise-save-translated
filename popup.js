@@ -10,7 +10,9 @@ const lastSaveNode = document.querySelector("#last-save");
 const actionsSection = document.querySelector("#actions-section");
 const resultSection = document.querySelector("#result-section");
 const shellNode = document.querySelector(".shell");
+const versionFooterNode = document.querySelector("#version-footer");
 const targetTabId = parseTargetTabId();
+const EXTENSION_VERSION = chrome.runtime.getManifest().version;
 const actionButtonMarkup = new Map([
   [articleSaveButton, articleSaveButton.innerHTML],
   [wholePageButton, wholePageButton.innerHTML]
@@ -56,6 +58,7 @@ wholePageButton.addEventListener("click", async () => {
 });
 
 void loadState();
+renderVersionFooter();
 
 async function loadState() {
   const response = await chrome.runtime.sendMessage({
@@ -376,6 +379,7 @@ function buildDebugText(lastSaveResult) {
   }
 
   const lines = [
+    `extensionVersion: ${EXTENSION_VERSION}`,
     `status: ${lastSaveResult.status || ""}`,
     `savedAt: ${lastSaveResult.savedAt || ""}`,
     `originalUrl: ${lastSaveResult.originalUrl || ""}`,
@@ -482,6 +486,14 @@ function escapeHtml(value) {
 
 function escapeAttribute(value) {
   return escapeHtml(value);
+}
+
+function renderVersionFooter() {
+  if (!versionFooterNode) {
+    return;
+  }
+
+  versionFooterNode.textContent = `Version ${EXTENSION_VERSION}`;
 }
 
 async function runSave({
