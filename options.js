@@ -88,9 +88,9 @@ async function loadSettings() {
     fileSettings.redirectBaseUrl ||
     fileSettings.redirectSigningSecret
   ) {
-    configSourceNode.textContent = "File config detected. Reload the extension after editing config.local.json. You can restore the built-in redirect domain from this page at any time.";
+    configSourceNode.textContent = "File config detected. Reload the unpacked extension after editing config.local.json. You can restore the built-in redirect domain from this page at any time.";
   } else {
-    configSourceNode.textContent = "The redirect domain field defaults to the built-in jump-back domain. Change it only if you run your own redirect service.";
+    configSourceNode.textContent = "The redirect domain field already points at the built-in jump-back domain. Change it only if you run your own redirect service.";
   }
 }
 

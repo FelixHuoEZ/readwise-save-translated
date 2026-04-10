@@ -110,28 +110,28 @@ function renderActiveTab(activeTab, config) {
   );
   setPill(
     modePill,
-    "Original URL default",
+    "Default URL mode",
     "ok"
   );
 
   setActionButtonsDisabled(!config.hasToken || !activeTab?.saveable);
 
   if (!config.hasToken) {
-    saveHintNode.textContent = "Add your Readwise token before testing the extension.";
+    saveHintNode.textContent = "Add your Readwise token before saving.";
     return;
   }
 
   if (!activeTab?.saveable) {
-    saveHintNode.textContent = "Open this details page from the extension icon on a normal http(s) article tab.";
+    saveHintNode.textContent = "Open this from the extension on a normal http(s) article tab.";
     return;
   }
 
   if (config.redirectBaseUrl && config.hasRedirectSigningSecret) {
-    saveHintNode.textContent = `Left click uses the original page URL. If Reader collapses the saved content back to English, fallback saves will use ${config.redirectBaseUrl}.`;
+    saveHintNode.textContent = `Default saves use the original URL. Fallback saves use ${config.redirectBaseUrl}.`;
     return;
   }
 
-  saveHintNode.textContent = "Left click uses the original page URL. If Reader collapses the saved content back to English, use the fallback source URL here or from the action right-click menu.";
+  saveHintNode.textContent = "Default saves use the original URL. Use fallback only if Reader strips the translation.";
 }
 
 function renderLastSave(lastSaveResult) {

@@ -283,6 +283,34 @@
         padding: 0 22px 22px;
       }
 
+      .subsection {
+        display: grid;
+        gap: 14px;
+        padding: 16px;
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        background: var(--panel-muted);
+      }
+
+      .subsection-header {
+        display: grid;
+        gap: 6px;
+      }
+
+      .subsection-title {
+        margin: 0;
+        font-size: 15px;
+        line-height: 1.2;
+        letter-spacing: -0.01em;
+      }
+
+      .subsection-copy {
+        margin: 0;
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
       .config-note {
         padding: 0 22px 22px;
         color: var(--muted);
@@ -344,44 +372,58 @@
             <summary class="advanced-summary">
               <div>
                 <strong>Advanced</strong>
-                <span>Redirect domain, capture mode, tags, and title overrides</span>
+                <span>Redirect setup, experimental fallback options, and optional metadata overrides</span>
               </div>
               <span class="summary-icon">+</span>
             </summary>
 
             <div class="advanced-grid">
-              <label for="redirect-base-url">
-                Redirect base URL
-                <div class="inline-actions">
-                  <input id="redirect-base-url" name="redirect-base-url" type="url" placeholder="https://go.example.com">
-                  <button id="restore-redirect-base-url" class="secondary" type="button">Restore default domain</button>
+              <section class="subsection">
+                <div class="subsection-header">
+                  <h3 class="subsection-title">Redirect</h3>
+                  <p class="subsection-copy">Used only by the fallback save path, when Reader strips translated content and you want a cleaner source link.</p>
                 </div>
-                <span class="field-note">Fallback links use this domain only when a redirect signing secret is also configured.</span>
-              </label>
 
-              <label for="redirect-signing-secret">
-                Redirect signing secret
-                <input id="redirect-signing-secret" name="redirect-signing-secret" type="password" autocomplete="off" spellcheck="false" placeholder="Set the same secret in your redirect worker">
-                <span class="field-note">Keep this local. Do not bundle it into a public extension package.</span>
-              </label>
+                <label for="redirect-base-url">
+                  Redirect base URL
+                  <div class="inline-actions">
+                    <input id="redirect-base-url" name="redirect-base-url" type="url" placeholder="https://go.example.com">
+                    <button id="restore-redirect-base-url" class="secondary" type="button">Restore default domain</button>
+                  </div>
+                  <span class="field-note">Fallback links use this domain only when a redirect signing secret is also configured.</span>
+                </label>
 
-              <label for="capture-mode">
-                Capture mode
-                <select id="capture-mode" name="capture-mode">
-                  <option value="html">Full HTML snapshot (preferred)</option>
-                  <option value="text">Experimental text fallback</option>
-                </select>
-              </label>
+                <label for="redirect-signing-secret">
+                  Redirect signing secret
+                  <input id="redirect-signing-secret" name="redirect-signing-secret" type="password" autocomplete="off" spellcheck="false" placeholder="Set the same secret in your redirect worker">
+                  <span class="field-note">Keep this local. Do not bundle it into a public extension package.</span>
+                </label>
+              </section>
 
-              <label for="title-prefix">
-                Title prefix (optional)
-                <input id="title-prefix" name="title-prefix" type="text" placeholder="">
-              </label>
+              <section class="subsection">
+                <div class="subsection-header">
+                  <h3 class="subsection-title">Experimental</h3>
+                  <p class="subsection-copy">Leave these alone unless you are debugging capture quality or want optional metadata tweaks.</p>
+                </div>
 
-              <label for="tags">
-                Optional tags (comma separated)
-                <textarea id="tags" name="tags" placeholder=""></textarea>
-              </label>
+                <label for="capture-mode">
+                  Capture mode
+                  <select id="capture-mode" name="capture-mode">
+                    <option value="html">Full HTML snapshot (preferred)</option>
+                    <option value="text">Experimental text fallback</option>
+                  </select>
+                </label>
+
+                <label for="title-prefix">
+                  Title prefix (optional)
+                  <input id="title-prefix" name="title-prefix" type="text" placeholder="">
+                </label>
+
+                <label for="tags">
+                  Optional tags (comma separated)
+                  <textarea id="tags" name="tags" placeholder=""></textarea>
+                </label>
+              </section>
             </div>
 
             <p class="config-note" id="config-source"></p>

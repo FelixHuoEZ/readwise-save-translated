@@ -175,6 +175,15 @@
 
 详情页用于查看保存结果、fallback 和调试信息。
 
+- 详情页首屏必须优先展示：
+  - 当前页面
+  - 可执行动作
+  - 最近一次保存结果
+- 首屏不应堆叠过多解释性文字。
+- 原始调试字段必须折叠到次级层级，避免干扰主流程。
+- 技术诊断信息应放在可展开的 `Technical details` 区域中。
+- `Raw debug dump` 应再折一层，默认不展开。
+
 详情页至少需要展示：
 
 - 当前页面标题
@@ -215,6 +224,12 @@
 - 设置页必须提供“恢复默认 redirect 域名”的入口。
 - 同时支持通过本地 `config.local.json` 提供这些配置。
 - unpacked extension 模式下，用户应能仅通过改本地配置文件完成初始化。
+- 设置页应保持单栏、低噪音的工具页结构。
+- 设置页的高级配置必须至少拆成两组：
+  - Redirect
+  - Experimental
+- Redirect 组优先承载跳转域名和签名 secret。
+- Experimental 组优先承载 capture mode、title prefix、tags 这类非必填项。
 
 ## 8. 测试与验收要求
 
