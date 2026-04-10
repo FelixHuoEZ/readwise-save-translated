@@ -49,7 +49,7 @@
 
       .shell {
         display: grid;
-        gap: 10px;
+        gap: 8px;
       }
 
       .panel {
@@ -89,15 +89,15 @@
       .top-note {
         margin: 8px 14px 0;
         padding: 0 0 14px;
-        font-size: 13px;
-        line-height: 1.45;
+        font-size: 12px;
+        line-height: 1.4;
         color: var(--muted);
       }
 
       .current-panel,
       .actions-panel,
       .result-panel {
-        padding: 14px;
+        padding: 13px;
       }
 
       .current-head,
@@ -109,8 +109,8 @@
       }
 
       .page-title {
-        margin: 10px 0 0;
-        font-size: 23px;
+        margin: 8px 0 0;
+        font-size: 22px;
         font-weight: 700;
         line-height: 1.08;
         letter-spacing: -0.03em;
@@ -118,7 +118,7 @@
       }
 
       .page-url {
-        margin: 10px 0 0;
+        margin: 8px 0 0;
         font-size: 12px;
         line-height: 1.5;
         color: var(--muted);
@@ -129,7 +129,7 @@
         display: flex;
         flex-wrap: wrap;
         gap: 8px;
-        margin-top: 12px;
+        margin-top: 10px;
       }
 
       .pill {
@@ -163,7 +163,7 @@
       }
 
       .strategy-note {
-        margin: 10px 0 0;
+        margin: 8px 0 0;
         font-size: 12px;
         line-height: 1.35;
         color: var(--muted);
@@ -193,7 +193,7 @@
       .action-grid {
         display: grid;
         gap: 10px;
-        margin-top: 14px;
+        margin-top: 12px;
       }
 
       button {
@@ -223,7 +223,7 @@
         display: grid;
         gap: 4px;
         width: 100%;
-        padding: 14px;
+        padding: 13px;
         text-align: left;
         border: 1px solid transparent;
         box-shadow: 0 8px 20px rgba(23, 23, 23, 0.05);
@@ -249,7 +249,7 @@
       }
 
       .button-title {
-        font-size: 17px;
+        font-size: 16px;
         font-weight: 700;
         line-height: 1.1;
       }
@@ -453,7 +453,7 @@
             <button class="ghost-button small" id="settings-button" type="button">Settings</button>
           </div>
           <p class="top-note">
-            Use this page only when you need fallback behavior or a closer look at the last result.
+            Use this page only for fallback saves or a closer look at the last result.
           </p>
         </section>
 
@@ -474,21 +474,21 @@
         <section class="panel actions-panel">
           <div class="action-copy">
             <p class="section-label">Actions</p>
-            <p class="action-title">Run the save path you want.</p>
+            <p class="action-title">Choose a save path.</p>
             <p class="action-subtitle">
-              Start with the default path. Use fallback only when Reader collapses translated content back to English.
+              Start with default. Use fallback only when Reader drops the translation.
             </p>
           </div>
           <div class="action-grid">
             <button class="action-button primary" id="article-save-button" type="button">
               <span class="button-kicker">Fallback path</span>
-              <span class="button-title">Use fallback source URL</span>
-              <span class="button-note">Use your redirect domain if configured. Otherwise fall back to a synthetic source URL and add an original-article link.</span>
+              <span class="button-title">Use fallback source</span>
+              <span class="button-note">Use your redirect domain if configured. Otherwise use a synthetic source and add an original-article link.</span>
             </button>
             <button class="action-button fallback" id="whole-page-button" type="button">
               <span class="button-kicker">Default path</span>
-              <span class="button-title">Retry default save</span>
-              <span class="button-note">Save with the original page URL and keep Reader's native source-link behavior.</span>
+              <span class="button-title">Retry default path</span>
+              <span class="button-note">Save with the original page URL and keep Reader's native source link.</span>
             </button>
           </div>
         </section>

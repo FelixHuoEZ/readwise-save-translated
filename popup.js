@@ -127,11 +127,11 @@ function renderActiveTab(activeTab, config) {
   }
 
   if (config.redirectBaseUrl && config.hasRedirectSigningSecret) {
-    saveHintNode.textContent = `Default saves use the original URL. Fallback saves use ${config.redirectBaseUrl}.`;
+    saveHintNode.textContent = `Default uses the original URL. Fallback uses ${config.redirectBaseUrl}.`;
     return;
   }
 
-  saveHintNode.textContent = "Default saves use the original URL. Use fallback only if Reader strips the translation.";
+  saveHintNode.textContent = "Default uses the original URL. Use fallback only if Reader strips the translation.";
 }
 
 function renderLastSave(lastSaveResult) {
@@ -480,7 +480,7 @@ function setActionButtonLoading(button, loadingLabel) {
   button.innerHTML = `
     <span class="button-kicker">Working</span>
     <span class="button-title">${escapeHtml(loadingLabel)}</span>
-    <span class="button-note">This can take a few seconds.</span>
+    <span class="button-note">This may take a few seconds.</span>
   `;
 }
 
