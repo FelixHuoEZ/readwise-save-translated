@@ -37,4 +37,6 @@ After deploy, set:
 - `Redirect base URL`: your deployed redirect domain, for example `https://go.example.com`
 - `Redirect signing secret`: the same value used for `REDIRECT_SIGNING_SECRET`
 
+Leave both fields empty if you do not want to use a custom redirect domain.
+
 Then reload the extension.

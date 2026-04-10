@@ -219,9 +219,9 @@
   - default tags
   - redirect base URL
   - redirect signing secret
-- redirect base URL 在设置页中应默认填入内置 redirect 域名。
+- redirect base URL 在设置页中默认应为空。
 - 用户必须可以在设置页中把 redirect base URL 改成自己的自定义域名。
-- 设置页必须提供“恢复默认 redirect 域名”的入口。
+- 设置页必须提供清空自定义 redirect 域名的入口。
 - 同时支持通过本地 `config.local.json` 提供这些配置。
 - unpacked extension 模式下，用户应能仅通过改本地配置文件完成初始化。
 - 设置页应保持单栏、低噪音的工具页结构。
@@ -250,9 +250,9 @@
 - 并不是所有翻译插件都会把翻译写回真实 DOM；如果只是视觉覆盖，本项目可能拿不到中文内容。
 - Readwise 对“直接上传 HTML”这条链路的 URL 去重行为，可能与其他保存路径不同。
 - 当前已支持可选的 redirect 服务，用于替代 `translated.local` 之类的假地址。
-- 当前 redirect 服务支持两种模式：
-  - 直接使用内置默认 redirect 域名
+- 当前 redirect 服务仅作为高级用法存在：
   - 用户自定义自己的 redirect 域名
+  - 用户本地配置自己的 signing secret
 - 如果用户没有配置 redirect 服务，扩展仍需保留现有 synthetic URL fallback 作为兜底路径。
-- 当前 redirect 服务设计是“用户自带域名 + 本地配置 secret”，仍然属于高级用法。
+- 公开插件默认不应依赖任何内置 redirect 域名。
 - 如果 Reader 中已存在原始英文文档，删除它之后是否会提升后续 raw HTML 清洗质量，仍然属于待观察问题。

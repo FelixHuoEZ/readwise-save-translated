@@ -20,9 +20,9 @@
 
 ## 2. 最终方案
 
-最终采用的方案是：
+最终采用的个人高级方案是：
 
-- 域名：`go.example.com`
+- 域名：自定义子域名，例如 `go.example.com`
 - 基础设施：Cloudflare Workers
 - redirect 形态：
   - `https://go.example.com/open?u=...&n=...&s=...&v=v1`
@@ -127,9 +127,7 @@ npx wrangler secret put REDIRECT_SIGNING_SECRET --config cloudflare/redirect-wor
 npx wrangler deploy --config cloudflare/redirect-worker/wrangler.jsonc
 ```
 
-成功部署到了：
-
-- `go.example.com (custom domain)`
+成功部署到你自己的 custom domain。
 
 ## 5. 本地扩展配置
 
@@ -160,7 +158,7 @@ npx wrangler deploy --config cloudflare/redirect-worker/wrangler.jsonc
 这说明：
 
 - fallback redirect 集成生效
-- Reader 中的 source link 已经可以通过 `go.example.com` 跳回原始页面
+- Reader 中的 source link 已经可以通过自定义 redirect 域名跳回原始页面
 
 ## 7. 过程中的一个真实 bug
 
@@ -184,7 +182,7 @@ npx wrangler deploy --config cloudflare/redirect-worker/wrangler.jsonc
 
 fallback source URL 的优先级：
 
-1. 如果已配置 redirect 服务，则使用 `go.example.com/open?...`
+1. 如果已配置 redirect 服务，则使用自定义 redirect URL
 2. 如果未配置 redirect 服务，则退回 synthetic URL
 
 同时：

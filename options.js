@@ -9,7 +9,7 @@ const restoreRedirectBaseUrlButton = document.querySelector("#restore-redirect-b
 const statusNode = document.querySelector("#status");
 const configSourceNode = document.querySelector("#config-source");
 const FILE_CONFIG_PATH = "config.local.json";
-const DEFAULT_REDIRECT_BASE_URL = "https://go.example.com";
+const DEFAULT_REDIRECT_BASE_URL = "";
 
 void loadSettings();
 
@@ -42,7 +42,7 @@ form.addEventListener("submit", async (event) => {
 
 restoreRedirectBaseUrlButton.addEventListener("click", () => {
   redirectBaseUrlInput.value = DEFAULT_REDIRECT_BASE_URL;
-  setStatus("Default redirect domain restored.", "success");
+  setStatus("Custom redirect domain cleared.", "success");
 });
 
 async function loadSettings() {
@@ -88,17 +88,22 @@ async function loadSettings() {
     fileSettings.redirectBaseUrl ||
     fileSettings.redirectSigningSecret
   ) {
-    configSourceNode.textContent = "File config detected. Reload the unpacked extension after editing config.local.json. You can restore the built-in redirect domain from this page at any time.";
+    configSourceNode.textContent = "File config detected. Reload the unpacked extension after editing config.local.json. Leave redirect fields empty unless you run your own redirect service.";
   } else {
-    configSourceNode.textContent = "The redirect domain field already points at the built-in jump-back domain. Change it only if you run your own redirect service.";
+    configSourceNode.textContent = "Leave redirect fields empty unless you run your own redirect service.";
   }
 }
 
 function validateForm() {
   const redirectBaseUrl = redirectBaseUrlInput.value.trim();
+  const redirectSigningSecret = redirectSigningSecretInput.value.trim();
 
-  if (!redirectBaseUrl) {
-    return "Redirect base URL cannot be empty. Restore the default domain or enter your own.";
+  if (!redirectBaseUrl && !redirectSigningSecret) {
+    return "";
+  }
+
+  if (!redirectBaseUrl || !redirectSigningSecret) {
+    return "Set both redirect fields or leave both empty.";
   }
 
   try {

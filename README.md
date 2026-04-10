@@ -80,7 +80,7 @@ Example `config.local.json`:
   "titlePrefix": "",
   "defaultTags": [],
   "captureMode": "html",
-  "redirectBaseUrl": "https://go.example.com",
+  "redirectBaseUrl": "",
   "redirectSigningSecret": ""
 }
 ```
@@ -103,19 +103,20 @@ Example `config.local.json`:
 3. Open the new Reader document.
 4. Use the `Open original article` link at the top when you need to jump back to the source page.
 
-## Redirect Domains
+## Optional Custom Redirect Domain
 
-The settings page includes a default redirect domain for fallback saves.
+By default, fallback saves use a synthetic local URL.
 
-If you change that field and want to switch back, use `Restore default domain` in the extension settings.
+If you prefer a cleaner source link that can jump back to the original page, configure your own redirect service and then set both:
 
-If you prefer to use your own domain instead, configure a personal redirect service and then replace the redirect base URL in settings.
+- `Redirect base URL`
+- `Redirect signing secret`
 
 ## Custom Redirect Service with Cloudflare Workers
 
 This repository includes an optional Cloudflare Worker at [cloudflare/redirect-worker](./cloudflare/redirect-worker).
 
-Use this setup if you want fallback saves to use your own domain instead of the built-in redirect domain.
+Use this setup only if you want fallback saves to use your own domain instead of the default synthetic fallback.
 
 Example target domain:
 
@@ -189,4 +190,4 @@ npm run test:e2e-save
 
 - If the translation plugin only paints translated text visually and does not write it into the DOM, the extension cannot save the translated content reliably.
 - Some pages still depend on how Readwise handles URL canonicalization and HTML cleaning.
-- The redirect service is optional. If it is not configured, fallback saves still use a synthetic local URL plus an in-document original-article link.
+- The redirect service is optional. If it is not configured, fallback saves use a synthetic local URL plus an in-document original-article link.

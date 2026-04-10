@@ -85,26 +85,6 @@
         line-height: 1.5;
       }
 
-      .pill-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        margin-top: 14px;
-      }
-
-      .pill {
-        display: inline-flex;
-        align-items: center;
-        min-height: 28px;
-        padding: 0 10px;
-        border: 1px solid var(--border);
-        border-radius: 999px;
-        background: var(--panel-muted);
-        color: var(--muted);
-        font-size: 12px;
-        font-weight: 600;
-      }
-
       form {
         display: grid;
         gap: 16px;
@@ -340,11 +320,6 @@
           <p class="hero-copy">
             Add your Readwise token, then save translated pages with one click. Everything here stays local unless you trigger a save.
           </p>
-          <div class="pill-row">
-            <span class="pill">Local only</span>
-            <span class="pill">Only on save</span>
-            <span class="pill">Fallback ready</span>
-          </div>
         </section>
 
         <form id="settings-form">
@@ -388,15 +363,15 @@
                   Redirect base URL
                   <div class="inline-actions">
                     <input id="redirect-base-url" name="redirect-base-url" type="url" placeholder="https://go.example.com">
-                    <button id="restore-redirect-base-url" class="secondary" type="button">Restore default domain</button>
+                    <button id="restore-redirect-base-url" class="secondary" type="button">Clear custom domain</button>
                   </div>
-                  <span class="field-note">Fallback links use this domain only when a redirect signing secret is also configured.</span>
+                  <span class="field-note">Optional. Used only when a redirect signing secret is also configured.</span>
                 </label>
 
                 <label for="redirect-signing-secret">
                   Redirect signing secret
                   <input id="redirect-signing-secret" name="redirect-signing-secret" type="password" autocomplete="off" spellcheck="false" placeholder="Set the same secret in your redirect worker">
-                  <span class="field-note">Keep this local. Do not bundle it into a public extension package.</span>
+                  <span class="field-note">Optional. Keep this local. Do not bundle it into a public extension package.</span>
                 </label>
               </section>
 
