@@ -83,7 +83,7 @@
   "originalUrl": "https://www.example.com/article",
   "version": "v1",
   "client": {
-    "extensionVersion": "0.1.0",
+    "extensionVersion": "0.1.1",
     "mode": "fallback"
   }
 }
