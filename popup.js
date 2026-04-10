@@ -10,6 +10,10 @@ const copyDebugButton = document.querySelector("#copy-debug-button");
 const saveHintNode = document.querySelector("#save-hint");
 const lastSaveNode = document.querySelector("#last-save");
 const targetTabId = parseTargetTabId();
+const actionButtonMarkup = new Map([
+  [articleSaveButton, articleSaveButton.innerHTML],
+  [wholePageButton, wholePageButton.innerHTML]
+]);
 let currentLastSaveResult = null;
 
 settingsButton.addEventListener("click", async () => {
@@ -38,7 +42,6 @@ articleSaveButton.addEventListener("click", async () => {
   await runSave({
     button: articleSaveButton,
     loadingLabel: "Saving…",
-    idleLabel: "Use fallback source URL",
     successHint: "Saved to Readwise with the fallback source URL.",
     hint: "Saving with the fallback source URL so Readwise keeps the translated HTML, then adding an original-article link into the saved document.",
     message: {
@@ -56,7 +59,6 @@ wholePageButton.addEventListener("click", async () => {
   await runSave({
     button: wholePageButton,
     loadingLabel: "Saving…",
-    idleLabel: "Retry default save",
     successHint: "Saved to Readwise with the default source URL path.",
     hint: "Saving with the original page URL, which keeps Reader's native source link behavior.",
     message: {
@@ -452,30 +454,38 @@ function escapeAttribute(value) {
 async function runSave({
   button,
   loadingLabel,
-  idleLabel,
   hint,
   successHint,
   message = { type: "save-active-tab" }
 }) {
-  const articleIdleLabel = articleSaveButton.textContent;
-  const wholePageIdleLabel = wholePageButton.textContent;
   setActionButtonsDisabled(true);
-  button.textContent = loadingLabel;
+  setActionButtonLoading(button, loadingLabel);
   saveHintNode.textContent = hint;
 
   const response = await chrome.runtime.sendMessage(message);
 
   if (!response?.ok) {
-    articleSaveButton.textContent = articleIdleLabel;
-    wholePageButton.textContent = wholePageIdleLabel;
+    resetActionButtons();
     await loadState();
     saveHintNode.textContent = response?.error ?? "Save failed.";
     return;
   }
 
-  articleSaveButton.textContent = articleIdleLabel;
-  wholePageButton.textContent = wholePageIdleLabel;
+  resetActionButtons();
   await loadState();
-  button.textContent = idleLabel;
   saveHintNode.textContent = successHint ?? "Saved to Readwise.";
+}
+
+function setActionButtonLoading(button, loadingLabel) {
+  button.innerHTML = `
+    <span class="button-kicker">Working</span>
+    <span class="button-title">${escapeHtml(loadingLabel)}</span>
+    <span class="button-note">This can take a few seconds.</span>
+  `;
+}
+
+function resetActionButtons() {
+  for (const [button, markup] of actionButtonMarkup.entries()) {
+    button.innerHTML = markup;
+  }
 }

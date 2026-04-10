@@ -7,25 +7,23 @@
     <style>
       :root {
         color-scheme: light;
-        --bg: #f0fdfa;
-        --panel: rgba(255, 255, 255, 0.9);
-        --panel-strong: #ffffff;
-        --line: rgba(19, 78, 74, 0.12);
-        --line-strong: rgba(19, 78, 74, 0.18);
-        --text: #134e4a;
-        --muted: #4b6b67;
-        --muted-strong: #2f5a54;
-        --primary: #0d9488;
-        --primary-deep: #0f766e;
-        --fallback: #f97316;
-        --fallback-deep: #ea580c;
-        --success-bg: #ecfdf5;
+        --bg: #f5f5f4;
+        --panel: rgba(255, 255, 255, 0.96);
+        --line: #e7e5e4;
+        --line-strong: #d6d3d1;
+        --text: #171717;
+        --muted: #57534e;
+        --muted-strong: #44403c;
+        --primary: #18181b;
+        --primary-deep: #0a0a0a;
+        --accent-soft: #f5efe0;
+        --success-bg: #f0fdf4;
         --success-text: #166534;
         --warn-bg: #fff7ed;
         --warn-text: #b45309;
         --error-bg: #fef2f2;
         --error-text: #b91c1c;
-        --shadow: 0 18px 45px rgba(13, 148, 136, 0.12);
+        --shadow: 0 24px 60px rgba(23, 23, 23, 0.06);
       }
 
       * {
@@ -36,13 +34,13 @@
         width: 392px;
         margin: 0;
         color: var(--text);
-        font-family: "Avenir Next", "Segoe UI", sans-serif;
+        font-family: Inter, "Avenir Next", "Segoe UI", sans-serif;
         user-select: text;
         -webkit-user-select: text;
         background:
-          radial-gradient(circle at top left, rgba(20, 184, 166, 0.18), transparent 32%),
-          radial-gradient(circle at 88% 0%, rgba(249, 115, 22, 0.14), transparent 22%),
-          linear-gradient(180deg, #f7fffe 0%, var(--bg) 100%);
+          radial-gradient(circle at top left, rgba(178, 138, 24, 0.08), transparent 28%),
+          radial-gradient(circle at top right, rgba(24, 24, 27, 0.05), transparent 24%),
+          var(--bg);
       }
 
       main {
@@ -82,10 +80,10 @@
 
       .app-title {
         margin: 4px 0 0;
-        font-family: "Iowan Old Style", "Palatino Linotype", serif;
         font-size: 28px;
-        line-height: 0.95;
-        color: #103a37;
+        line-height: 0.98;
+        letter-spacing: -0.03em;
+        color: var(--text);
       }
 
       .top-note {
@@ -93,7 +91,7 @@
         padding: 0 0 14px;
         font-size: 13px;
         line-height: 1.45;
-        color: var(--muted-strong);
+        color: var(--muted);
       }
 
       .current-panel,
@@ -112,10 +110,11 @@
 
       .page-title {
         margin: 10px 0 0;
-        font-family: "Iowan Old Style", "Palatino Linotype", serif;
-        font-size: 24px;
+        font-size: 23px;
+        font-weight: 700;
         line-height: 1.08;
-        color: #102f2d;
+        letter-spacing: -0.03em;
+        color: var(--text);
       }
 
       .page-url {
@@ -140,7 +139,7 @@
         padding: 0 10px;
         border: 1px solid var(--line);
         border-radius: 999px;
-        background: rgba(255, 255, 255, 0.92);
+        background: #fafaf9;
         font-size: 12px;
         color: var(--muted);
       }
@@ -177,10 +176,11 @@
 
       .action-title {
         margin: 0;
-        font-family: "Iowan Old Style", "Palatino Linotype", serif;
         font-size: 20px;
-        line-height: 1.1;
-        color: #103a37;
+        font-weight: 700;
+        line-height: 1.15;
+        letter-spacing: -0.02em;
+        color: var(--text);
       }
 
       .action-subtitle {
@@ -226,18 +226,18 @@
         padding: 14px;
         text-align: left;
         border: 1px solid transparent;
-        box-shadow: 0 8px 20px rgba(15, 118, 110, 0.08);
+        box-shadow: 0 8px 20px rgba(23, 23, 23, 0.05);
       }
 
       .action-button.primary {
-        color: #f8fffe;
+        color: #fafaf9;
         background: linear-gradient(135deg, var(--primary), var(--primary-deep));
       }
 
       .action-button.fallback {
-        color: #6a3412;
-        background: linear-gradient(135deg, #fff4eb, #ffedd5);
-        border-color: rgba(249, 115, 22, 0.16);
+        color: var(--text);
+        background: linear-gradient(180deg, #ffffff, #fafaf9);
+        border-color: var(--line);
       }
 
       .button-kicker {
@@ -269,7 +269,7 @@
       .ghost-button {
         padding: 9px 12px;
         border: 1px solid var(--line);
-        background: rgba(255, 255, 255, 0.76);
+        background: #fafaf9;
         color: var(--muted-strong);
       }
 
@@ -294,7 +294,7 @@
         padding: 10px 11px;
         border: 1px solid var(--line);
         border-radius: 14px;
-        background: rgba(255, 255, 255, 0.82);
+        background: #fafaf9;
       }
 
       .fact-label {
@@ -342,12 +342,12 @@
       }
 
       .scope-badge {
-        background: rgba(13, 148, 136, 0.1);
-        color: var(--primary-deep);
+        background: var(--accent-soft);
+        color: var(--text);
       }
 
       .result-link {
-        color: var(--primary-deep);
+        color: var(--text);
         font-size: 13px;
         font-weight: 600;
         text-decoration: none;
@@ -413,8 +413,8 @@
         padding: 10px;
         border: 1px solid var(--line);
         border-radius: 12px;
-        background: rgba(255, 255, 255, 0.82);
-        color: #1f3d3a;
+        background: #fafaf9;
+        color: var(--text);
         font: 11px/1.5 "SFMono-Regular", "Menlo", monospace;
         white-space: pre-wrap;
         word-break: break-word;
@@ -453,7 +453,7 @@
             <button class="ghost-button small" id="settings-button" type="button">Settings</button>
           </div>
           <p class="top-note">
-            Default saves stay on the original URL. Come here only when you need fallback behavior or a closer look at the last result.
+            Use this page only when you need fallback behavior or a closer look at the last result.
           </p>
         </section>
 
@@ -474,9 +474,9 @@
         <section class="panel actions-panel">
           <div class="action-copy">
             <p class="section-label">Actions</p>
-            <p class="action-title">Retry the save path you want.</p>
+            <p class="action-title">Run the save path you want.</p>
             <p class="action-subtitle">
-              Use fallback only when Reader collapses the translated content back to English.
+              Start with the default path. Use fallback only when Reader collapses translated content back to English.
             </p>
           </div>
           <div class="action-grid">
