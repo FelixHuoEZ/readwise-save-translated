@@ -221,7 +221,6 @@
   - redirect signing secret
 - redirect base URL 在设置页中默认应为空。
 - 用户必须可以在设置页中把 redirect base URL 改成自己的自定义域名。
-- 设置页必须提供清空自定义 redirect 域名的入口。
 - 同时支持通过本地 `config.local.json` 提供这些配置。
 - unpacked extension 模式下，用户应能仅通过改本地配置文件完成初始化。
 - 设置页应保持单栏、低噪音的工具页结构。
@@ -229,6 +228,7 @@
   - Redirect
   - Experimental
 - Redirect 组优先承载跳转域名和签名 secret。
+- redirect base URL 和 redirect signing secret 要么一起填写，要么一起留空。
 - Experimental 组优先承载 capture mode、title prefix、tags 这类非必填项。
 
 ## 8. 测试与验收要求

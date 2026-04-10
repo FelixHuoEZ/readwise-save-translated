@@ -5,7 +5,6 @@ const tagsInput = document.querySelector("#tags");
 const captureModeInput = document.querySelector("#capture-mode");
 const redirectBaseUrlInput = document.querySelector("#redirect-base-url");
 const redirectSigningSecretInput = document.querySelector("#redirect-signing-secret");
-const restoreRedirectBaseUrlButton = document.querySelector("#restore-redirect-base-url");
 const statusNode = document.querySelector("#status");
 const configSourceNode = document.querySelector("#config-source");
 const FILE_CONFIG_PATH = "config.local.json";
@@ -38,11 +37,6 @@ form.addEventListener("submit", async (event) => {
   });
 
   setStatus("Saved.", "success");
-});
-
-restoreRedirectBaseUrlButton.addEventListener("click", () => {
-  redirectBaseUrlInput.value = DEFAULT_REDIRECT_BASE_URL;
-  setStatus("Custom redirect domain cleared.", "success");
 });
 
 async function loadSettings() {
