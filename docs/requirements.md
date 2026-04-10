@@ -53,6 +53,7 @@
 - 必须是一个 Chrome 扩展。
 - 左键点击扩展 action 时，直接触发默认保存，不弹出 popup。
 - 右键扩展 action 时，应至少提供：
+  - Settings
   - 打开详情页
   - Save with original URL (default)
   - fallback source URL

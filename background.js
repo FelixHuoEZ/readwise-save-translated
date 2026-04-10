@@ -14,10 +14,11 @@ const DEFAULT_HTML_SCOPE = "whole-page";
 const DEFAULT_REDIRECT_BASE_URL = "https://go.example.com";
 const LAST_SAVE_RESULT_KEY = "lastSaveResult";
 const TAB_ACTION_STATES_KEY = "tabActionStates";
+const SETTINGS_MENU_ID = "open-settings";
 const DETAILS_MENU_ID = "open-details";
 const DEFAULT_SAVE_MENU_ID = "save-original-default";
 const SYNTHETIC_FALLBACK_MENU_ID = "save-synthetic-fallback";
-const DEFAULT_ACTION_TITLE = "Left click: save with original URL. Right click: default save, fallback source URL, or open details.";
+const DEFAULT_ACTION_TITLE = "Left click: save with original URL. Right click: settings, default save, fallback source URL, or open details.";
 const DEFAULT_ACTION_ICON_PATHS = {
   16: "assets/icon-16.png",
   32: "assets/icon-32.png"
@@ -113,6 +114,11 @@ chrome.action.onClicked.addListener((tab) => {
 });
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId === SETTINGS_MENU_ID) {
+    void chrome.runtime.openOptionsPage();
+    return;
+  }
+
   if (info.menuItemId === DETAILS_MENU_ID) {
     void openDetailsPage(tab?.id ?? null);
     return;
@@ -195,8 +201,8 @@ async function getPopupState(targetTabId = null) {
 async function ensureContextMenus() {
   await chrome.contextMenus.removeAll();
   await chrome.contextMenus.create({
-    id: DETAILS_MENU_ID,
-    title: "Open details",
+    id: SETTINGS_MENU_ID,
+    title: "Settings",
     contexts: ["action"]
   });
   await chrome.contextMenus.create({
@@ -207,6 +213,11 @@ async function ensureContextMenus() {
   await chrome.contextMenus.create({
     id: SYNTHETIC_FALLBACK_MENU_ID,
     title: "Save with fallback source URL",
+    contexts: ["action"]
+  });
+  await chrome.contextMenus.create({
+    id: DETAILS_MENU_ID,
+    title: "Open details",
     contexts: ["action"]
   });
 }
