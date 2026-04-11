@@ -122,6 +122,9 @@ Example `config.local.json`:
 
 `config.local.json` is ignored by Git.
 
+The Settings UI uses user-facing labels such as `Placeholder source URL (default)`.
+`config.local.json` uses internal keys instead. For example, the Settings label `Placeholder source URL (default)` maps to `"redirectMode": "synthetic"`.
+
 The extension keeps each fallback mode's settings separate. Switching modes in Settings does not erase the values you already entered for the other modes.
 
 ## Use
