@@ -1,5 +1,7 @@
 import {
+  REDIRECT_VERSION,
   buildSignedRedirectUrl,
+  buildUnsignedRedirectUrl,
   normalizeRedirectBaseUrl
 } from "./lib/redirect-url.js";
 
@@ -11,14 +13,16 @@ const LEGACY_DEFAULT_TAGS = ["translated", "snapshot", "lang:zh", "chrome-extens
 const DEFAULT_TAGS = [];
 const DEFAULT_CAPTURE_MODE = "html";
 const DEFAULT_HTML_SCOPE = "whole-page";
+const DEFAULT_REDIRECT_MODE = "synthetic";
 const DEFAULT_REDIRECT_BASE_URL = "";
+const DEFAULT_REDIRECT_SERVICE_URL = "";
 const LAST_SAVE_RESULT_KEY = "lastSaveResult";
 const TAB_ACTION_STATES_KEY = "tabActionStates";
 const SETTINGS_MENU_ID = "open-settings";
 const DETAILS_MENU_ID = "open-details";
 const DEFAULT_SAVE_MENU_ID = "save-original-default";
-const SYNTHETIC_FALLBACK_MENU_ID = "save-synthetic-fallback";
-const DEFAULT_ACTION_TITLE = "Left click: save with original URL. Right click: settings, default save, fallback source URL, or open details.";
+const FALLBACK_MODE_MENU_ID = "save-fallback-mode";
+const DEFAULT_ACTION_TITLE = "Left click: save with original URL. Right click: settings, default save, fallback mode, or open details.";
 const DEFAULT_ACTION_ICON_PATHS = {
   16: "assets/icon-16.png",
   32: "assets/icon-32.png"
@@ -31,6 +35,11 @@ const ERROR_ACTION_ICON_PATHS = {
   16: "assets/icon-error-16.png",
   32: "assets/icon-error-32.png"
 };
+const EXTENSION_VERSION = chrome.runtime.getManifest().version;
+const REDIRECT_MODE_SYNTHETIC = "synthetic";
+const REDIRECT_MODE_LOCAL_SIGNING = "local-signing";
+const REDIRECT_MODE_SERVICE_SIGNING = "service-signing";
+const REDIRECT_MODE_DIRECT_UNSAFE = "direct-redirect-unsafe";
 
 chrome.runtime.onInstalled.addListener(async () => {
   const settings = await chrome.storage.local.get([
@@ -38,7 +47,11 @@ chrome.runtime.onInstalled.addListener(async () => {
     "titlePrefix",
     "defaultTags",
     "captureMode",
+    "redirectMode",
+    "redirectModeExplicit",
+    "redirectConfigs",
     "redirectBaseUrl",
+    "redirectServiceUrl",
     "redirectSigningSecret"
   ]);
 
@@ -60,6 +73,21 @@ chrome.runtime.onInstalled.addListener(async () => {
     updates.captureMode = DEFAULT_CAPTURE_MODE;
   }
 
+  if (!normalizeRedirectMode(settings.redirectMode)) {
+    updates.redirectMode = inferRedirectMode({
+      redirectBaseUrl: settings.redirectBaseUrl,
+      redirectServiceUrl: settings.redirectServiceUrl,
+      redirectSigningSecret: settings.redirectSigningSecret
+    });
+  }
+
+  if (!normalizeRedirectConfigsValue(settings.redirectConfigs)) {
+    const legacyConfigs = deriveLegacyRedirectConfigs(settings);
+    if (legacyConfigs) {
+      updates.redirectConfigs = legacyConfigs;
+    }
+  }
+
   if (Object.keys(updates).length > 0) {
     await chrome.storage.local.set(updates);
   }
@@ -74,6 +102,7 @@ chrome.runtime.onStartup.addListener(() => {
   void ensureContextMenus();
   void migrateLegacyDefaultTags();
   void migrateLegacyTitlePrefix();
+  void migrateRedirectSettings();
   void setVisibleActionIcon("default");
   void setVisibleActionTitle(DEFAULT_ACTION_TITLE);
   void syncFocusedWindowActionState();
@@ -129,17 +158,17 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
       captureMode: "html",
       forceReaderClean: true,
       htmlScope: "whole-page",
-      useSyntheticUrl: false
+      useFallbackSource: false
     }).catch((error) => handlePrimaryActionError(tab, error));
     return;
   }
 
-  if (info.menuItemId === SYNTHETIC_FALLBACK_MENU_ID && tab?.id) {
+  if (info.menuItemId === FALLBACK_MODE_MENU_ID && tab?.id) {
     void saveActiveTab(tab.id, {
       captureMode: "html",
       forceReaderClean: true,
       htmlScope: "article-only",
-      useSyntheticUrl: true
+      useFallbackSource: true
     }).catch((error) => handlePrimaryActionError(tab, error));
   }
 });
@@ -150,7 +179,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       captureMode: message?.captureMode,
       forceReaderClean: message?.forceReaderClean,
       htmlScope: message?.htmlScope,
-      useSyntheticUrl: message?.useSyntheticUrl
+      useFallbackSource: message?.useFallbackSource ?? message?.useSyntheticUrl
     })
       .then((result) => sendResponse({ ok: true, result }))
       .catch((error) => sendResponse({ ok: false, error: error.message }));
@@ -185,13 +214,17 @@ async function getPopupState(targetTabId = null) {
       titlePrefix: settings.titlePrefix,
       defaultTags: settings.defaultTags,
       captureMode: settings.captureMode,
+      redirectMode: settings.redirectMode,
       redirectBaseUrl: settings.redirectBaseUrl,
+      redirectServiceUrl: settings.redirectServiceUrl,
       hasRedirectSigningSecret: Boolean(settings.redirectSigningSecret),
       tokenSource: settings.sources.token,
       titlePrefixSource: settings.sources.titlePrefix,
       tagsSource: settings.sources.defaultTags,
       captureModeSource: settings.sources.captureMode,
+      redirectModeSource: settings.sources.redirectMode,
       redirectBaseUrlSource: settings.sources.redirectBaseUrl,
+      redirectServiceUrlSource: settings.sources.redirectServiceUrl,
       redirectSigningSecretSource: settings.sources.redirectSigningSecret
     },
     lastSaveResult: settings.lastSaveResult
@@ -211,8 +244,8 @@ async function ensureContextMenus() {
     contexts: ["action"]
   });
   await chrome.contextMenus.create({
-    id: SYNTHETIC_FALLBACK_MENU_ID,
-    title: "Save with fallback source URL",
+    id: FALLBACK_MODE_MENU_ID,
+    title: "Save with fallback mode",
     contexts: ["action"]
   });
   await chrome.contextMenus.create({
@@ -233,6 +266,38 @@ async function migrateLegacyTitlePrefix() {
   const { titlePrefix } = await chrome.storage.local.get(["titlePrefix"]);
   if (titlePrefix === LEGACY_TITLE_PREFIX) {
     await chrome.storage.local.set({ titlePrefix: DEFAULT_TITLE_PREFIX });
+  }
+}
+
+async function migrateRedirectSettings() {
+  const settings = await chrome.storage.local.get([
+    "redirectMode",
+    "redirectModeExplicit",
+    "redirectConfigs",
+    "redirectBaseUrl",
+    "redirectServiceUrl",
+    "redirectSigningSecret"
+  ]);
+
+  const updates = {};
+
+  if (!normalizeRedirectMode(settings.redirectMode)) {
+    updates.redirectMode = inferRedirectMode(settings);
+  }
+
+  if (!normalizeRedirectConfigsValue(settings.redirectConfigs)) {
+    const legacyConfigs = deriveLegacyRedirectConfigs(settings);
+    if (legacyConfigs) {
+      updates.redirectConfigs = legacyConfigs;
+    }
+  }
+
+  if (settings.redirectServiceUrl == null) {
+    updates.redirectServiceUrl = DEFAULT_REDIRECT_SERVICE_URL;
+  }
+
+  if (Object.keys(updates).length > 0) {
+    await chrome.storage.local.set(updates);
   }
 }
 
@@ -270,9 +335,12 @@ async function saveActiveTab(targetTabId = null, overrides = {}) {
 }
 
 async function performSave(tab, overrides = {}) {
+  let resolvedSettings = null;
+
   try {
     return await withBadge(tab.id, "…", "#5b6cf0", async () => {
       const settings = applySaveOverrides(await loadResolvedSettings(false), overrides);
+      resolvedSettings = settings;
 
       if (!settings.readwiseToken) {
         await setBadge(tab.id, "SET", "#d97706");
@@ -296,34 +364,36 @@ async function performSave(tab, overrides = {}) {
         throw new Error("No visible article element was found on this page. Use the whole-page fallback instead.");
       }
 
-      const useSyntheticUrl = overrides?.useSyntheticUrl === true;
-      const primarySourceUrl = useSyntheticUrl
+      const useFallbackSource = overrides?.useFallbackSource === true;
+      let sourceStrategy = "original-url";
+      const primarySource = useFallbackSource
         ? await buildFallbackSourceUrl(snapshot.url, settings)
-        : snapshot.url;
-      const primarySaveRequest = buildSavePayload(snapshot, settings, primarySourceUrl, { useSyntheticUrl });
+        : { sourceUrl: snapshot.url, strategy: "original-url" };
+      const primarySourceUrl = primarySource.sourceUrl;
+      sourceStrategy = primarySource.strategy;
+      const primarySaveRequest = buildSavePayload(snapshot, settings, primarySourceUrl, { useFallbackSource });
       let saveResult = await saveToReadwise(primarySaveRequest.payload, settings.readwiseToken);
       let usedFallbackUrl = false;
       let existingDocumentDetected = false;
       let existingDocumentUrl = null;
       let existingDocumentId = null;
       let saveRequest = primarySaveRequest;
-      let usedRedirectUrl = isRedirectFallbackUrl(primarySourceUrl, settings.redirectBaseUrl);
 
       if (saveResult.status === 200) {
-        if (!useSyntheticUrl) {
+        if (!useFallbackSource) {
           existingDocumentDetected = true;
           existingDocumentUrl = saveResult.body?.url ?? null;
           existingDocumentId = saveResult.body?.id ?? null;
         }
 
-        const retrySourceUrl = useSyntheticUrl
+        const retrySource = useFallbackSource
           ? await buildFallbackSourceUrl(snapshot.url, settings)
-          : addTranslatedFragment(snapshot.url);
-        const fallbackSaveRequest = buildSavePayload(snapshot, settings, retrySourceUrl, { useSyntheticUrl });
+          : { sourceUrl: addTranslatedFragment(snapshot.url), strategy: "original-url" };
+        const fallbackSaveRequest = buildSavePayload(snapshot, settings, retrySource.sourceUrl, { useFallbackSource });
         saveRequest = fallbackSaveRequest;
         saveResult = await saveToReadwise(fallbackSaveRequest.payload, settings.readwiseToken);
         usedFallbackUrl = true;
-        usedRedirectUrl = isRedirectFallbackUrl(retrySourceUrl, settings.redirectBaseUrl);
+        sourceStrategy = retrySource.strategy;
       }
 
       const savedDocumentId = saveResult.body?.id ?? null;
@@ -367,12 +437,14 @@ async function performSave(tab, overrides = {}) {
         contentBlockCount: snapshot.contentBlocks.length,
         readerCleanedHtml: settings.forceReaderClean === true,
         htmlScope: settings.htmlScope,
+        redirectMode: settings.redirectMode,
+        sourceStrategy,
         ingestTitle: saveRequest.ingestTitle,
         displayTitle: saveRequest.displayTitle,
         titleUpdateApplied,
         titleUpdateError,
-        usedSyntheticUrl: useSyntheticUrl,
-        usedRedirectUrl,
+        usedSyntheticUrl: sourceStrategy === REDIRECT_MODE_SYNTHETIC,
+        usedRedirectUrl: isRedirectSourceStrategy(sourceStrategy),
         usedFallbackUrl,
         status: "success"
       };
@@ -403,6 +475,8 @@ async function performSave(tab, overrides = {}) {
       existingDocumentDetected: false,
       existingDocumentUrl: null,
       existingDocumentId: null,
+      redirectMode: resolvedSettings?.redirectMode ?? null,
+      sourceStrategy: null,
       originalTitle: null,
       translatedTitle: null,
       usedRedirectUrl: false,
@@ -1264,7 +1338,7 @@ function buildSavePayload(snapshot, settings, sourceUrl = snapshot.url, options 
     ? selectHtmlSnapshot(snapshot, settings.htmlScope)
     : buildTextSnapshotHtml(snapshot.title, snapshot.contentBlocks, snapshot.filteredText || snapshot.visibleText);
   const retitledHtml = rewriteHtmlTitle(rawHtml, snapshot.parserTitle || snapshot.title);
-  const html = options.useSyntheticUrl
+  const html = options.useFallbackSource
     ? injectOriginalArticleLink(retitledHtml, originalUrl)
     : retitledHtml;
   const shouldCleanHtml = captureMode === "html" || settings.forceReaderClean === true;
@@ -1279,7 +1353,7 @@ function buildSavePayload(snapshot, settings, sourceUrl = snapshot.url, options 
     saved_using: "readwise-save-translated-extension"
   };
 
-  if (options.useSyntheticUrl) {
+  if (options.useFallbackSource) {
     payload.notes = `Original URL: ${originalUrl}`;
   }
 
@@ -1304,7 +1378,11 @@ async function loadResolvedSettings(includeLastSaveResult) {
     "titlePrefix",
     "defaultTags",
     "captureMode",
+    "redirectMode",
+    "redirectModeExplicit",
+    "redirectConfigs",
     "redirectBaseUrl",
+    "redirectServiceUrl",
     "redirectSigningSecret"
   ];
   if (includeLastSaveResult) {
@@ -1316,6 +1394,10 @@ async function loadResolvedSettings(includeLastSaveResult) {
     loadFileSettings()
   ]);
 
+  const resolvedRedirectConfigs = resolveRedirectConfigsState(storageSettings, fileSettings);
+  const resolvedRedirectMode = resolvePreferredRedirectMode(storageSettings, fileSettings, resolvedRedirectConfigs);
+  const activeRedirectFields = getActiveRedirectFields(resolvedRedirectMode, resolvedRedirectConfigs);
+
   return {
     readwiseToken: storageSettings.readwiseToken || fileSettings.readwiseToken || "",
     titlePrefix: storageSettings.titlePrefix ?? fileSettings.titlePrefix ?? DEFAULT_TITLE_PREFIX,
@@ -1325,10 +1407,11 @@ async function loadResolvedSettings(includeLastSaveResult) {
     captureMode: normalizeCaptureMode(storageSettings.captureMode)
       ?? normalizeCaptureMode(fileSettings.captureMode)
       ?? DEFAULT_CAPTURE_MODE,
-    redirectBaseUrl: normalizeRedirectBaseUrlValue(storageSettings.redirectBaseUrl)
-      ?? normalizeRedirectBaseUrlValue(fileSettings.redirectBaseUrl)
-      ?? DEFAULT_REDIRECT_BASE_URL,
-    redirectSigningSecret: storageSettings.redirectSigningSecret || fileSettings.redirectSigningSecret || "",
+    redirectMode: resolvedRedirectMode,
+    redirectConfigs: resolvedRedirectConfigs,
+    redirectBaseUrl: activeRedirectFields.redirectBaseUrl,
+    redirectServiceUrl: activeRedirectFields.redirectServiceUrl,
+    redirectSigningSecret: activeRedirectFields.redirectSigningSecret,
     lastSaveResult: includeLastSaveResult ? storageSettings[LAST_SAVE_RESULT_KEY] ?? null : null,
     sources: {
       token: storageSettings.readwiseToken ? "extension" : fileSettings.readwiseToken ? "file" : null,
@@ -1343,16 +1426,14 @@ async function loadResolvedSettings(includeLastSaveResult) {
         : fileSettings.captureMode != null
           ? "file"
           : "default",
-      redirectBaseUrl: storageSettings.redirectBaseUrl != null
+      redirectMode: storageSettings.redirectMode != null
         ? "extension"
-        : fileSettings.redirectBaseUrl != null
+        : fileSettings.redirectMode != null
           ? "file"
           : "default",
-      redirectSigningSecret: storageSettings.redirectSigningSecret
-        ? "extension"
-        : fileSettings.redirectSigningSecret
-          ? "file"
-          : "default"
+      redirectBaseUrl: getRedirectFieldSource(storageSettings, fileSettings, resolvedRedirectMode, "redirectBaseUrl"),
+      redirectServiceUrl: getRedirectFieldSource(storageSettings, fileSettings, resolvedRedirectMode, "redirectServiceUrl"),
+      redirectSigningSecret: getRedirectFieldSource(storageSettings, fileSettings, resolvedRedirectMode, "redirectSigningSecret")
     }
   };
 }
@@ -1391,6 +1472,32 @@ function normalizeCaptureMode(value) {
   return value === "html" || value === "text" ? value : null;
 }
 
+function normalizeRedirectMode(value) {
+  return [
+    REDIRECT_MODE_SYNTHETIC,
+    REDIRECT_MODE_LOCAL_SIGNING,
+    REDIRECT_MODE_SERVICE_SIGNING,
+    REDIRECT_MODE_DIRECT_UNSAFE
+  ].includes(value)
+    ? value
+    : null;
+}
+
+function createDefaultRedirectConfigs() {
+  return {
+    [REDIRECT_MODE_LOCAL_SIGNING]: {
+      redirectBaseUrl: "",
+      redirectSigningSecret: ""
+    },
+    [REDIRECT_MODE_SERVICE_SIGNING]: {
+      redirectServiceUrl: ""
+    },
+    [REDIRECT_MODE_DIRECT_UNSAFE]: {
+      redirectBaseUrl: ""
+    }
+  };
+}
+
 function normalizeRedirectBaseUrlValue(value) {
   const trimmed = String(value || "").trim();
   if (!trimmed) {
@@ -1402,6 +1509,277 @@ function normalizeRedirectBaseUrlValue(value) {
   } catch {
     return null;
   }
+}
+
+function normalizeRedirectServiceUrlValue(value) {
+  const trimmed = String(value || "").trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  try {
+    const url = new URL(trimmed);
+    if (!/^https?:$/i.test(url.protocol)) {
+      return null;
+    }
+
+    url.hash = "";
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function normalizeRedirectConfigsValue(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  const normalized = createDefaultRedirectConfigs();
+  const localSigning = value[REDIRECT_MODE_LOCAL_SIGNING];
+  const serviceSigning = value[REDIRECT_MODE_SERVICE_SIGNING];
+  const directUnsafe = value[REDIRECT_MODE_DIRECT_UNSAFE];
+
+  if (localSigning && typeof localSigning === "object") {
+    normalized[REDIRECT_MODE_LOCAL_SIGNING].redirectBaseUrl = normalizeRedirectBaseUrlValue(localSigning.redirectBaseUrl) ?? "";
+    normalized[REDIRECT_MODE_LOCAL_SIGNING].redirectSigningSecret = String(localSigning.redirectSigningSecret || "").trim();
+  }
+
+  if (serviceSigning && typeof serviceSigning === "object") {
+    normalized[REDIRECT_MODE_SERVICE_SIGNING].redirectServiceUrl = normalizeRedirectServiceUrlValue(serviceSigning.redirectServiceUrl) ?? "";
+  }
+
+  if (directUnsafe && typeof directUnsafe === "object") {
+    normalized[REDIRECT_MODE_DIRECT_UNSAFE].redirectBaseUrl = normalizeRedirectBaseUrlValue(directUnsafe.redirectBaseUrl) ?? "";
+  }
+
+  return hasAnyRedirectConfigInConfigs(normalized) ? normalized : null;
+}
+
+function deriveLegacyRedirectConfigs(source) {
+  const inferredMode = inferRedirectMode(source);
+
+  if (inferredMode === DEFAULT_REDIRECT_MODE) {
+    return null;
+  }
+
+  const normalized = createDefaultRedirectConfigs();
+
+  if (inferredMode === REDIRECT_MODE_LOCAL_SIGNING) {
+    normalized[REDIRECT_MODE_LOCAL_SIGNING].redirectBaseUrl = normalizeRedirectBaseUrlValue(source?.redirectBaseUrl) ?? "";
+    normalized[REDIRECT_MODE_LOCAL_SIGNING].redirectSigningSecret = String(source?.redirectSigningSecret || "").trim();
+  } else if (inferredMode === REDIRECT_MODE_SERVICE_SIGNING) {
+    normalized[REDIRECT_MODE_SERVICE_SIGNING].redirectServiceUrl = normalizeRedirectServiceUrlValue(source?.redirectServiceUrl) ?? "";
+  } else if (inferredMode === REDIRECT_MODE_DIRECT_UNSAFE) {
+    normalized[REDIRECT_MODE_DIRECT_UNSAFE].redirectBaseUrl = normalizeRedirectBaseUrlValue(source?.redirectBaseUrl) ?? "";
+  }
+
+  return normalized;
+}
+
+function hasAnyRedirectConfigInConfigs(configs) {
+  return Boolean(
+    String(configs?.[REDIRECT_MODE_LOCAL_SIGNING]?.redirectBaseUrl || "").trim()
+    || String(configs?.[REDIRECT_MODE_LOCAL_SIGNING]?.redirectSigningSecret || "").trim()
+    || String(configs?.[REDIRECT_MODE_SERVICE_SIGNING]?.redirectServiceUrl || "").trim()
+    || String(configs?.[REDIRECT_MODE_DIRECT_UNSAFE]?.redirectBaseUrl || "").trim()
+  );
+}
+
+function mergeRedirectConfigs(base, override) {
+  const merged = {
+    ...base,
+    [REDIRECT_MODE_LOCAL_SIGNING]: {
+      ...base[REDIRECT_MODE_LOCAL_SIGNING]
+    },
+    [REDIRECT_MODE_SERVICE_SIGNING]: {
+      ...base[REDIRECT_MODE_SERVICE_SIGNING]
+    },
+    [REDIRECT_MODE_DIRECT_UNSAFE]: {
+      ...base[REDIRECT_MODE_DIRECT_UNSAFE]
+    }
+  };
+
+  if (!override) {
+    return merged;
+  }
+
+  for (const mode of [REDIRECT_MODE_LOCAL_SIGNING, REDIRECT_MODE_SERVICE_SIGNING, REDIRECT_MODE_DIRECT_UNSAFE]) {
+    if (!override[mode]) {
+      continue;
+    }
+
+    merged[mode] = {
+      ...merged[mode],
+      ...override[mode]
+    };
+  }
+
+  return merged;
+}
+
+function resolveRedirectConfigsState(storageSettings, fileSettings) {
+  return mergeRedirectConfigs(
+    mergeRedirectConfigs(
+      createDefaultRedirectConfigs(),
+      resolveSourceRedirectConfigs(fileSettings)
+    ),
+    resolveSourceRedirectConfigs(storageSettings)
+  );
+}
+
+function resolveSourceRedirectConfigs(source) {
+  return normalizeRedirectConfigsValue(source?.redirectConfigs)
+    ?? deriveLegacyRedirectConfigs(source);
+}
+
+function hasAnyRedirectConfigSource(source) {
+  return Boolean(
+    normalizeRedirectConfigsValue(source?.redirectConfigs)
+    || deriveLegacyRedirectConfigs(source)
+  );
+}
+
+function inferRedirectMode({ redirectBaseUrl, redirectServiceUrl, redirectSigningSecret } = {}) {
+  if (normalizeRedirectServiceUrlValue(redirectServiceUrl)) {
+    return REDIRECT_MODE_SERVICE_SIGNING;
+  }
+
+  if (normalizeRedirectBaseUrlValue(redirectBaseUrl) && String(redirectSigningSecret || "").trim()) {
+    return REDIRECT_MODE_LOCAL_SIGNING;
+  }
+
+  if (normalizeRedirectBaseUrlValue(redirectBaseUrl)) {
+    return REDIRECT_MODE_DIRECT_UNSAFE;
+  }
+
+  return DEFAULT_REDIRECT_MODE;
+}
+
+function inferRedirectModeFromConfigs(configs) {
+  if (String(configs?.[REDIRECT_MODE_SERVICE_SIGNING]?.redirectServiceUrl || "").trim()) {
+    return REDIRECT_MODE_SERVICE_SIGNING;
+  }
+
+  if (
+    String(configs?.[REDIRECT_MODE_LOCAL_SIGNING]?.redirectBaseUrl || "").trim()
+    && String(configs?.[REDIRECT_MODE_LOCAL_SIGNING]?.redirectSigningSecret || "").trim()
+  ) {
+    return REDIRECT_MODE_LOCAL_SIGNING;
+  }
+
+  if (String(configs?.[REDIRECT_MODE_DIRECT_UNSAFE]?.redirectBaseUrl || "").trim()) {
+    return REDIRECT_MODE_DIRECT_UNSAFE;
+  }
+
+  return DEFAULT_REDIRECT_MODE;
+}
+
+function resolvePreferredRedirectMode(storageSettings, fileSettings, redirectConfigs) {
+  const storageMode = normalizeRedirectMode(storageSettings?.redirectMode);
+  const fileMode = normalizeRedirectMode(fileSettings?.redirectMode);
+  const storageModeExplicit = storageSettings?.redirectModeExplicit === true;
+
+  if (storageModeExplicit && storageMode) {
+    return storageMode;
+  }
+
+  if (hasAnyRedirectConfigSource(storageSettings)) {
+    return storageMode ?? inferRedirectModeFromConfigs(redirectConfigs);
+  }
+
+  if (fileMode && (fileMode !== DEFAULT_REDIRECT_MODE || hasAnyRedirectConfigSource(fileSettings))) {
+    return fileMode;
+  }
+
+  if (hasAnyRedirectConfigSource(fileSettings)) {
+    return inferRedirectModeFromConfigs(redirectConfigs);
+  }
+
+  return DEFAULT_REDIRECT_MODE;
+}
+
+function getActiveRedirectFields(mode, configs) {
+  const selectedMode = normalizeRedirectMode(mode) ?? DEFAULT_REDIRECT_MODE;
+  const source = configs || createDefaultRedirectConfigs();
+
+  if (selectedMode === REDIRECT_MODE_LOCAL_SIGNING) {
+    return {
+      redirectBaseUrl: source[REDIRECT_MODE_LOCAL_SIGNING]?.redirectBaseUrl || "",
+      redirectServiceUrl: "",
+      redirectSigningSecret: source[REDIRECT_MODE_LOCAL_SIGNING]?.redirectSigningSecret || ""
+    };
+  }
+
+  if (selectedMode === REDIRECT_MODE_SERVICE_SIGNING) {
+    return {
+      redirectBaseUrl: "",
+      redirectServiceUrl: source[REDIRECT_MODE_SERVICE_SIGNING]?.redirectServiceUrl || "",
+      redirectSigningSecret: ""
+    };
+  }
+
+  if (selectedMode === REDIRECT_MODE_DIRECT_UNSAFE) {
+    return {
+      redirectBaseUrl: source[REDIRECT_MODE_DIRECT_UNSAFE]?.redirectBaseUrl || "",
+      redirectServiceUrl: "",
+      redirectSigningSecret: ""
+    };
+  }
+
+  return {
+    redirectBaseUrl: "",
+    redirectServiceUrl: "",
+    redirectSigningSecret: ""
+  };
+}
+
+function getRedirectFieldSource(storageSettings, fileSettings, mode, fieldName) {
+  const selectedMode = normalizeRedirectMode(mode) ?? DEFAULT_REDIRECT_MODE;
+  const storageConfigs = normalizeRedirectConfigsValue(storageSettings.redirectConfigs);
+  const fileConfigs = normalizeRedirectConfigsValue(fileSettings.redirectConfigs);
+
+  if (selectedMode !== DEFAULT_REDIRECT_MODE) {
+    if (storageConfigs?.[selectedMode]?.[fieldName]) {
+      return "extension";
+    }
+
+    if (fileConfigs?.[selectedMode]?.[fieldName]) {
+      return "file";
+    }
+  }
+
+  if (fieldName === "redirectBaseUrl") {
+    if (storageSettings.redirectBaseUrl != null) {
+      return "extension";
+    }
+
+    if (fileSettings.redirectBaseUrl != null) {
+      return "file";
+    }
+  }
+
+  if (fieldName === "redirectServiceUrl") {
+    if (storageSettings.redirectServiceUrl != null) {
+      return "extension";
+    }
+
+    if (fileSettings.redirectServiceUrl != null) {
+      return "file";
+    }
+  }
+
+  if (fieldName === "redirectSigningSecret") {
+    if (storageSettings.redirectSigningSecret) {
+      return "extension";
+    }
+
+    if (fileSettings.redirectSigningSecret) {
+      return "file";
+    }
+  }
+
+  return "default";
 }
 
 function normalizeHtmlScope(value) {
@@ -1575,29 +1953,106 @@ function addTranslatedFragment(url) {
 }
 
 async function buildFallbackSourceUrl(originalUrl, settings) {
+  const redirectMode = normalizeRedirectMode(settings?.redirectMode) ?? DEFAULT_REDIRECT_MODE;
   const redirectBaseUrl = settings?.redirectBaseUrl || "";
+  const redirectServiceUrl = settings?.redirectServiceUrl || "";
   const redirectSigningSecret = settings?.redirectSigningSecret || "";
 
-  if (redirectBaseUrl && redirectSigningSecret) {
-    return buildSignedRedirectUrl(redirectBaseUrl, originalUrl, redirectSigningSecret);
+  if (redirectMode === REDIRECT_MODE_LOCAL_SIGNING) {
+    if (!redirectBaseUrl || !redirectSigningSecret) {
+      throw new Error("Extension-built redirect mode requires both a redirect base URL and a redirect signing secret.");
+    }
+
+    return {
+      sourceUrl: await buildSignedRedirectUrl(redirectBaseUrl, originalUrl, redirectSigningSecret),
+      strategy: REDIRECT_MODE_LOCAL_SIGNING
+    };
   }
 
-  return buildSyntheticUrl(originalUrl);
+  if (redirectMode === REDIRECT_MODE_SERVICE_SIGNING) {
+    if (!redirectServiceUrl) {
+      throw new Error("Service-built redirect mode requires a redirect service URL.");
+    }
+
+    return {
+      sourceUrl: await requestRedirectFromService(redirectServiceUrl, originalUrl),
+      strategy: REDIRECT_MODE_SERVICE_SIGNING
+    };
+  }
+
+  if (redirectMode === REDIRECT_MODE_DIRECT_UNSAFE) {
+    if (!redirectBaseUrl) {
+      throw new Error("Direct redirect mode requires a redirect base URL.");
+    }
+
+    return {
+      sourceUrl: buildUnsignedRedirectUrl(redirectBaseUrl, originalUrl),
+      strategy: REDIRECT_MODE_DIRECT_UNSAFE
+    };
+  }
+
+  return {
+    sourceUrl: buildSyntheticUrl(originalUrl),
+    strategy: REDIRECT_MODE_SYNTHETIC
+  };
 }
 
-function isRedirectFallbackUrl(sourceUrl, redirectBaseUrl) {
-  const normalizedBaseUrl = normalizeRedirectBaseUrlValue(redirectBaseUrl);
-  if (!sourceUrl || !normalizedBaseUrl) {
-    return false;
+async function requestRedirectFromService(serviceUrl, originalUrl) {
+  const normalizedServiceUrl = normalizeRedirectServiceUrlValue(serviceUrl);
+  if (!normalizedServiceUrl) {
+    throw new Error("Redirect service URL is not a valid http(s) URL.");
+  }
+
+  const response = await fetch(normalizedServiceUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      originalUrl,
+      version: REDIRECT_VERSION,
+      client: {
+        extensionVersion: EXTENSION_VERSION,
+        mode: "fallback"
+      }
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Redirect service request failed (${response.status}): ${errorText}`);
+  }
+
+  let body;
+  try {
+    body = await response.json();
+  } catch {
+    throw new Error("Redirect service returned invalid JSON.");
+  }
+
+  const redirectUrl = String(body?.redirectUrl || "").trim();
+  if (!body?.ok || !redirectUrl) {
+    throw new Error("Redirect service did not return a redirectUrl.");
   }
 
   try {
-    const source = new URL(sourceUrl);
-    const base = new URL(normalizedBaseUrl);
-    return source.origin === base.origin && source.pathname === "/open";
-  } catch {
-    return false;
+    const parsed = new URL(redirectUrl);
+    if (!/^https?:$/i.test(parsed.protocol)) {
+      throw new Error("Redirect service returned a non-http URL.");
+    }
+  } catch (error) {
+    throw new Error(error instanceof Error ? error.message : "Redirect service returned an invalid URL.");
   }
+
+  return redirectUrl;
+}
+
+function isRedirectSourceStrategy(sourceStrategy) {
+  return [
+    REDIRECT_MODE_LOCAL_SIGNING,
+    REDIRECT_MODE_SERVICE_SIGNING,
+    REDIRECT_MODE_DIRECT_UNSAFE
+  ].includes(sourceStrategy);
 }
 
 function buildSyntheticUrl(originalUrl) {
@@ -1791,12 +2246,15 @@ async function isTabCurrentlyActive(tabId) {
 }
 
 function buildSuccessActionTitle(resultSummary) {
-  if (resultSummary.usedSyntheticUrl) {
-    if (resultSummary.usedRedirectUrl) {
-      return "Saved translated fallback version with your redirect source URL.";
-    }
-
-    return "Saved translated fallback version with a synthetic Reader source URL.";
+  switch (resultSummary.sourceStrategy) {
+    case REDIRECT_MODE_LOCAL_SIGNING:
+      return "Saved translated fallback version with an extension-built redirect link.";
+    case REDIRECT_MODE_SERVICE_SIGNING:
+      return "Saved translated fallback version with a service-built redirect link.";
+    case REDIRECT_MODE_DIRECT_UNSAFE:
+      return "Saved translated fallback version with a direct redirect link.";
+    case REDIRECT_MODE_SYNTHETIC:
+      return "Saved translated fallback version with a placeholder Reader source URL.";
   }
 
   if (resultSummary.existingDocumentDetected) {

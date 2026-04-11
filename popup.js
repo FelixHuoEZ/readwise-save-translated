@@ -27,15 +27,15 @@ articleSaveButton.addEventListener("click", async () => {
   await runSave({
     button: articleSaveButton,
     loadingLabel: "Saving…",
-    successHint: "Saved to Readwise with the fallback source URL.",
-    hint: "Saving with the fallback source URL so Readwise keeps the translated HTML, then adding an original-article link into the saved document.",
+    successHint: "Saved to Readwise with the configured fallback mode.",
+    hint: "Saving with your configured fallback mode so Readwise keeps the translated HTML, then adding an original-article link into the saved document.",
     message: {
       type: "save-active-tab",
       tabId: targetTabId,
       captureMode: "html",
       forceReaderClean: true,
       htmlScope: "article-only",
-      useSyntheticUrl: true
+      useFallbackSource: true
     }
   });
 });
@@ -52,7 +52,7 @@ wholePageButton.addEventListener("click", async () => {
       captureMode: "html",
       forceReaderClean: true,
       htmlScope: "whole-page",
-      useSyntheticUrl: false
+      useFallbackSource: false
     }
   });
 });
@@ -107,8 +107,18 @@ function renderActiveTab(activeTab, config) {
     return;
   }
 
-  if (config.redirectBaseUrl && config.hasRedirectSigningSecret) {
-    saveHintNode.textContent = `Default uses the original URL. Fallback uses ${config.redirectBaseUrl}.`;
+  if (config.redirectMode === "local-signing" && config.redirectBaseUrl && config.hasRedirectSigningSecret) {
+    saveHintNode.textContent = "Default keeps the original URL. Fallback builds the redirect link inside the extension.";
+    return;
+  }
+
+  if (config.redirectMode === "service-signing" && config.redirectServiceUrl) {
+    saveHintNode.textContent = "Default keeps the original URL. Fallback asks your service to build the redirect link.";
+    return;
+  }
+
+  if (config.redirectMode === "direct-redirect-unsafe" && config.redirectBaseUrl) {
+    saveHintNode.textContent = "Default keeps the original URL. Fallback sends the destination directly to your redirect domain.";
     return;
   }
 
@@ -133,12 +143,12 @@ function renderLastSave(lastSaveResult) {
     technicalRows.push(renderRow("Reader source URL", escapeHtml(lastSaveResult.readerSourceUrl)));
   }
 
-  if (lastSaveResult.usedRedirectUrl) {
-    technicalRows.push(renderRow("Source strategy", "Redirect fallback"));
-  } else if (lastSaveResult.usedSyntheticUrl) {
-    technicalRows.push(renderRow("Source strategy", "Synthetic URL fallback"));
-  } else {
-    technicalRows.push(renderRow("Source strategy", "Original URL"));
+  if (lastSaveResult.sourceStrategy || lastSaveResult.status === "success") {
+    technicalRows.push(renderRow("Source strategy", escapeHtml(formatSourceStrategy(lastSaveResult.sourceStrategy))));
+  }
+
+  if (lastSaveResult.redirectMode) {
+    technicalRows.push(renderRow("Configured redirect mode", escapeHtml(formatRedirectMode(lastSaveResult.redirectMode))));
   }
 
   if (lastSaveResult.existingDocumentDetected) {
@@ -242,11 +252,8 @@ function renderLastSave(lastSaveResult) {
   const fallbackBadge = lastSaveResult.usedFallbackUrl
     ? '<span class="scope-badge">url fallback</span>'
     : "";
-  const syntheticBadge = lastSaveResult.usedSyntheticUrl && !lastSaveResult.usedRedirectUrl
-    ? '<span class="scope-badge">synthetic fallback</span>'
-    : "";
-  const redirectBadge = lastSaveResult.usedRedirectUrl
-    ? '<span class="scope-badge">redirect fallback</span>'
+  const sourceBadge = lastSaveResult.sourceStrategy && lastSaveResult.sourceStrategy !== "original-url"
+    ? `<span class="scope-badge">${escapeHtml(formatSourceStrategyBadge(lastSaveResult.sourceStrategy))}</span>`
     : "";
   const existingBadge = lastSaveResult.existingDocumentDetected
     ? '<span class="scope-badge">existing doc</span>'
@@ -261,11 +268,9 @@ function renderLastSave(lastSaveResult) {
   const factCards = buildFactGrid([
     {
       key: "Source",
-      value: lastSaveResult.usedRedirectUrl
-        ? "Redirect fallback"
-        : lastSaveResult.usedSyntheticUrl
-          ? "Synthetic fallback"
-          : "Original URL"
+      value: lastSaveResult.status === "success"
+        ? formatSourceStrategy(lastSaveResult.sourceStrategy)
+        : "Not saved"
     },
     {
       key: "Title",
@@ -286,8 +291,7 @@ function renderLastSave(lastSaveResult) {
       <div class="status-line">
         <span class="status-badge ${statusClass}">${escapeHtml(formatStatus(lastSaveResult))}</span>
         ${scopeBadge}
-        ${redirectBadge}
-        ${syntheticBadge}
+        ${sourceBadge}
         ${fallbackBadge}
         ${existingBadge}
       </div>
@@ -385,6 +389,8 @@ function buildDebugText(lastSaveResult) {
     `originalUrl: ${lastSaveResult.originalUrl || ""}`,
     `readerDocumentUrl: ${lastSaveResult.readerDocumentUrl || ""}`,
     `readerSourceUrl: ${lastSaveResult.readerSourceUrl || ""}`,
+    `redirectMode: ${lastSaveResult.redirectMode || ""}`,
+    `sourceStrategy: ${lastSaveResult.sourceStrategy || ""}`,
     `usedSyntheticUrl: ${String(lastSaveResult.usedSyntheticUrl ?? false)}`,
     `usedRedirectUrl: ${String(lastSaveResult.usedRedirectUrl ?? false)}`,
     `existingDocumentDetected: ${String(lastSaveResult.existingDocumentDetected ?? false)}`,
@@ -431,12 +437,15 @@ function setPill(node, text, state) {
 
 function formatStatus(result) {
   if (result.status === "success") {
-    if (result.usedRedirectUrl) {
-      return "Saved with redirect fallback";
-    }
-
-    if (result.usedSyntheticUrl) {
-      return "Saved with synthetic fallback";
+    switch (result.sourceStrategy) {
+      case "local-signing":
+        return "Saved with extension-built redirect";
+      case "service-signing":
+        return "Saved with service-built redirect";
+      case "direct-redirect-unsafe":
+        return "Saved with direct redirect";
+      case "synthetic":
+        return "Saved with placeholder source";
     }
 
     if (result.existingDocumentDetected) {
@@ -447,6 +456,49 @@ function formatStatus(result) {
   }
 
   return "Save failed";
+}
+
+function formatSourceStrategy(strategy) {
+  switch (strategy) {
+    case "local-signing":
+      return "Extension-built redirect";
+    case "service-signing":
+      return "Service-built redirect";
+    case "direct-redirect-unsafe":
+      return "Direct redirect (unsafe)";
+    case "synthetic":
+      return "Placeholder source URL";
+    default:
+      return "Original URL";
+  }
+}
+
+function formatSourceStrategyBadge(strategy) {
+  switch (strategy) {
+    case "local-signing":
+      return "extension-built";
+    case "service-signing":
+      return "service-built";
+    case "direct-redirect-unsafe":
+      return "direct redirect";
+    case "synthetic":
+      return "placeholder source";
+    default:
+      return "original URL";
+  }
+}
+
+function formatRedirectMode(mode) {
+  switch (mode) {
+    case "local-signing":
+      return "Extension-built redirect";
+    case "service-signing":
+      return "Service-built redirect";
+    case "direct-redirect-unsafe":
+      return "Direct redirect (unsafe)";
+    default:
+      return "Placeholder source URL";
+  }
 }
 
 function formatTime(value) {

@@ -118,6 +118,17 @@
         font-weight: 600;
       }
 
+      .field-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .required-mark {
+        color: var(--error);
+        font-weight: 800;
+      }
+
       input,
       textarea,
       select {
@@ -188,17 +199,20 @@
         color: var(--accent);
       }
 
-      #status {
+      #status,
+      #advanced-status {
         min-height: 20px;
         color: var(--muted);
         font-size: 13px;
       }
 
-      #status[data-state="success"] {
+      #status[data-state="success"],
+      #advanced-status[data-state="success"] {
         color: var(--success);
       }
 
-      #status[data-state="error"] {
+      #status[data-state="error"],
+      #advanced-status[data-state="error"] {
         color: var(--error);
       }
 
@@ -273,7 +287,7 @@
 
       .subsection-title {
         margin: 0;
-        font-size: 15px;
+        font-size: 16px;
         line-height: 1.2;
         letter-spacing: -0.01em;
       }
@@ -285,11 +299,137 @@
         line-height: 1.5;
       }
 
+      .mode-group {
+        display: grid;
+        gap: 10px;
+        margin: 0;
+        padding: 0;
+        border: 0;
+      }
+
+      .mode-legend {
+        padding: 0;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted-soft);
+      }
+
+      .mode-grid {
+        display: grid;
+        gap: 10px;
+      }
+
+      .mode-caption {
+        margin: -2px 0 4px;
+        font-size: 12px;
+        line-height: 1.5;
+        color: var(--muted);
+      }
+
+      .mode-option {
+        display: block;
+        cursor: pointer;
+      }
+
+      .mode-input {
+        position: absolute;
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .mode-card {
+        display: grid;
+        gap: 4px;
+        padding: 12px 14px;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        background: #fff;
+        transition: border-color 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
+      }
+
+      .mode-input:focus-visible + .mode-card {
+        outline: 2px solid rgba(178, 138, 24, 0.42);
+        outline-offset: 2px;
+      }
+
+      .mode-input:checked + .mode-card {
+        border-color: rgba(178, 138, 24, 0.36);
+        background: var(--accent-soft);
+        box-shadow: 0 0 0 3px rgba(178, 138, 24, 0.08);
+      }
+
+      .mode-card-title {
+        font-size: 14px;
+        font-weight: 700;
+        line-height: 1.3;
+      }
+
+      .mode-card-copy {
+        font-size: 12px;
+        line-height: 1.5;
+        color: var(--muted);
+      }
+
+      .mode-fields {
+        display: grid;
+        gap: 14px;
+      }
+
+      .mode-fields[data-disabled="true"] {
+        opacity: 0.72;
+      }
+
+      .redirect-field[data-disabled="true"] {
+        opacity: 0.52;
+      }
+
+      .redirect-field[data-disabled="true"] input {
+        background: #f5f5f4;
+        cursor: not-allowed;
+      }
+
+      .mode-empty-note {
+        margin: 0;
+        padding: 12px 14px;
+        border: 1px dashed var(--border);
+        border-radius: 14px;
+        background: #fff;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.5;
+      }
+
+      .warning-callout {
+        padding: 12px 14px;
+        border: 1px solid rgba(180, 83, 9, 0.18);
+        border-radius: 14px;
+        background: #fff7ed;
+        color: #9a3412;
+        font-size: 12px;
+        line-height: 1.5;
+      }
+
       .config-note {
         padding: 0 22px 22px;
         color: var(--muted);
         font-size: 13px;
         line-height: 1.5;
+      }
+
+      .advanced-actions {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 0 22px 22px;
+      }
+
+      input[aria-invalid="true"],
+      textarea[aria-invalid="true"],
+      select[aria-invalid="true"] {
+        border-color: rgba(185, 28, 28, 0.52);
+        box-shadow: 0 0 0 4px rgba(185, 28, 28, 0.08);
       }
 
       .meta-footer {
@@ -359,17 +499,80 @@
                   <p class="subsection-copy">Used only by the fallback save path when Reader strips translated content.</p>
                 </div>
 
-                <label for="redirect-base-url">
-                  Redirect base URL
-                  <input id="redirect-base-url" name="redirect-base-url" type="url" placeholder="https://go.example.com">
-                  <span class="field-note">Optional. Fill this only if you also set a redirect signing secret.</span>
-                </label>
+                <fieldset class="mode-group">
+                  <legend class="mode-legend">Fallback source mode</legend>
+                  <p class="mode-caption">Choose who creates the fallback link when the default save comes back English-only.</p>
+                  <div class="mode-grid">
+                    <label class="mode-option">
+                      <input class="mode-input" type="radio" name="redirect-mode" value="synthetic">
+                      <span class="mode-card">
+                        <span class="mode-card-title">Placeholder source URL (default)</span>
+                        <span class="mode-card-copy">No redirect setup. Fallback uses a placeholder Reader source URL instead of the original page URL.</span>
+                      </span>
+                    </label>
 
-                <label for="redirect-signing-secret">
-                  Redirect signing secret
-                  <input id="redirect-signing-secret" name="redirect-signing-secret" type="password" autocomplete="off" spellcheck="false" placeholder="Set the same secret in your redirect worker">
-                  <span class="field-note">Optional. Keep this local. Set it only if you also fill the redirect base URL.</span>
-                </label>
+                    <label class="mode-option">
+                      <input class="mode-input" type="radio" name="redirect-mode" value="local-signing">
+                      <span class="mode-card">
+                        <span class="mode-card-title">Extension-built redirect</span>
+                        <span class="mode-card-copy">The extension stores your secret and builds the redirect URL locally.</span>
+                      </span>
+                    </label>
+
+                    <label class="mode-option">
+                      <input class="mode-input" type="radio" name="redirect-mode" value="service-signing">
+                      <span class="mode-card">
+                        <span class="mode-card-title">Service-built redirect</span>
+                        <span class="mode-card-copy">Your own service returns the redirect URL. The extension does not store the secret.</span>
+                      </span>
+                    </label>
+
+                    <label class="mode-option">
+                      <input class="mode-input" type="radio" name="redirect-mode" value="direct-redirect-unsafe">
+                      <span class="mode-card">
+                        <span class="mode-card-title">Direct redirect (unsafe)</span>
+                        <span class="mode-card-copy">No secret. Use this only if you fully accept the open-redirect risk.</span>
+                      </span>
+                    </label>
+                  </div>
+                </fieldset>
+
+                <div class="mode-fields">
+                  <p class="mode-empty-note" id="redirect-empty-note" hidden>
+                    No extra setup for this mode. Fallback saves will use a placeholder source URL and add an original-article link inside the saved document.
+                  </p>
+
+                  <label class="redirect-field" for="redirect-base-url" id="redirect-base-url-field">
+                    <span class="field-label">
+                      <span>Redirect base URL</span>
+                      <span class="required-mark" id="redirect-base-url-required" hidden>*</span>
+                    </span>
+                    <input id="redirect-base-url" name="redirect-base-url" type="url" placeholder="https://go.example.com">
+                    <span class="field-note">Used by Extension-built redirect and Direct redirect.</span>
+                  </label>
+
+                  <label class="redirect-field" for="redirect-service-url" id="redirect-service-url-field">
+                    <span class="field-label">
+                      <span>Redirect service URL</span>
+                      <span class="required-mark" id="redirect-service-url-required" hidden>*</span>
+                    </span>
+                    <input id="redirect-service-url" name="redirect-service-url" type="url" placeholder="https://go.example.com/api/mint-redirect">
+                    <span class="field-note">Set this to the endpoint that returns a ready-to-use redirect URL.</span>
+                  </label>
+
+                  <label class="redirect-field" for="redirect-signing-secret" id="redirect-signing-secret-field">
+                    <span class="field-label">
+                      <span>Redirect signing secret</span>
+                      <span class="required-mark" id="redirect-signing-secret-required" hidden>*</span>
+                    </span>
+                    <input id="redirect-signing-secret" name="redirect-signing-secret" type="password" autocomplete="off" spellcheck="false" placeholder="Set the same secret in your redirect worker">
+                    <span class="field-note">Used only by Extension-built redirect. Keep it local and match your worker secret.</span>
+                  </label>
+
+                  <div class="warning-callout" id="redirect-direct-warning" hidden>
+                    Direct redirect does not protect your domain. Anyone who knows the URL pattern can generate links on it. Your redirect service must accept <code>/open?u=...</code> without signature checks.
+                  </div>
+                </div>
               </section>
 
               <section class="subsection">
@@ -396,6 +599,11 @@
                   <textarea id="tags" name="tags" placeholder=""></textarea>
                 </label>
               </section>
+            </div>
+
+            <div class="advanced-actions">
+              <button type="submit" class="secondary">Save advanced settings</button>
+              <span id="advanced-status" aria-live="polite" role="alert"></span>
             </div>
 
             <p class="config-note" id="config-source"></p>

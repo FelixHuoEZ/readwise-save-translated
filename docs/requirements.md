@@ -20,9 +20,8 @@
 - 扩展只允许使用非常轻量的通用范围收缩策略，例如直接复用页面现成的 `article` 元素。
 - 默认路径优先保留 Readwise 的原生 source-link 行为。
 - fallback source URL 方案只在默认路径把内容清洗回英文时使用。
-- 如果用户配置了个人 redirect 服务，fallback source URL 应优先使用 redirect URL。
-- 扩展内置一个默认 redirect 域名，作为 fallback source URL 的默认跳转域名。
-- 如果用户没有配置 redirect 服务，fallback source URL 再退回 synthetic URL。
+- 如果用户没有配置任何 redirect 模式，fallback source URL 应退回 synthetic URL。
+- 高级模式允许用户自定义 redirect 行为，但公开插件默认不依赖任何内置 redirect 域名。
 - 整个产品方向是“保存翻译后的页面状态”，不是“重新抓取原始 URL 并重新翻译”。
 - 如果翻译插件没有把中文写入真实 DOM，而只是视觉覆盖，那么本项目的保存效果不保证可用。
 
@@ -62,8 +61,12 @@
 ### 4.2 保存策略
 
 - 默认保存策略使用原始页面 URL 作为 Reader source URL。
-- fallback 保存策略优先使用用户配置的 redirect URL 作为 Reader source URL。
-- 如果未配置 redirect 服务，则退回 synthetic URL 作为 Reader source URL。
+- fallback 保存策略支持以下模式：
+  - placeholder source URL（默认）
+  - 插件本地签名
+  - 服务端签名
+  - 直接跳转（不安全）
+- 如果未配置高级 redirect 模式，则退回 synthetic URL 作为 Reader source URL。
 - 两条保存路径都必须使用 `should_clean_html: true`。
 - 扩展必须将当前页面在翻译完成后的 HTML 快照提交给 Readwise Reader Save API。
 - 扩展必须保留回到原始文章 URL 的路径。
@@ -225,10 +228,14 @@
   - title prefix
   - capture mode
   - default tags
+  - redirect mode
   - redirect base URL
+  - redirect service URL
   - redirect signing secret
 - redirect base URL 在设置页中默认应为空。
-- 用户必须可以在设置页中把 redirect base URL 改成自己的自定义域名。
+- redirect mode 默认应为 `placeholder source URL`。
+- 用户必须可以在设置页中切换 redirect mode。
+- 用户必须可以在设置页中把 redirect base URL 或 redirect service URL 改成自己的自定义地址。
 - 同时支持通过本地 `config.local.json` 提供这些配置。
 - unpacked extension 模式下，用户应能仅通过改本地配置文件完成初始化。
 - 设置页应保持单栏、低噪音的工具页结构。
@@ -236,7 +243,25 @@
   - Redirect
   - Experimental
 - Redirect 组优先承载跳转域名和签名 secret。
-- redirect base URL 和 redirect signing secret 要么一起填写，要么一起留空。
+- Redirect 组需要先选择模式，再按模式暴露字段。
+- 当模式为 placeholder source URL 时，配置区应呈现明显的禁用/灰态，并明确说明“该模式无需额外配置”。
+- 每种模式的配置必须独立保存。
+- 用户在设置页切换模式时，之前为其他模式填写过的内容不能丢失。
+- 只有当前选中的模式会生效；其他模式的已保存配置只作为候选，不应同时生效。
+- 插件本地签名:
+  - 需要 redirect base URL
+  - 需要 redirect signing secret
+- 服务端签名:
+  - 需要 redirect service URL
+- 直接跳转（不安全）:
+  - 需要 redirect base URL
+  - 必须展示明显的风险提示
+- placeholder source URL:
+  - 不需要额外字段
+- 当前模式要求填写的字段，UI 必须显示红色星号。
+- 保存时必须校验当前模式要求的字段，并对缺失字段显示错误状态。
+- Advanced 区需要提供独立的保存按钮，避免用户以为切换模式会立即生效。
+- Advanced 区切换模式时只能更新页面上的草稿状态，不能立即写入扩展配置。
 - Experimental 组优先承载 capture mode、title prefix、tags 这类非必填项。
 
 ## 8. 测试与验收要求
@@ -260,7 +285,7 @@
 - 当前已支持可选的 redirect 服务，用于替代 `translated.local` 之类的假地址。
 - 当前 redirect 服务仅作为高级用法存在：
   - 用户自定义自己的 redirect 域名
-  - 用户本地配置自己的 signing secret
+  - 用户可以选择插件本地签名、服务端签名或直接跳转（不安全）
 - 如果用户没有配置 redirect 服务，扩展仍需保留现有 synthetic URL fallback 作为兜底路径。
 - 公开插件默认不应依赖任何内置 redirect 域名。
 - 如果 Reader 中已存在原始英文文档，删除它之后是否会提升后续 raw HTML 清洗质量，仍然属于待观察问题。

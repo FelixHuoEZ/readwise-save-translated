@@ -10,7 +10,7 @@ This Chrome extension is built for a specific workflow: you open an article, tra
 - Preserves translated content when the translation plugin writes text back into the DOM.
 - Uses Readwise's own `should_clean_html` pipeline instead of a site-specific parser.
 - Keeps the default save path on the original article URL.
-- Adds a fallback source URL path for pages that Readwise cleans back to English.
+- Adds a fallback mode for pages that Readwise cleans back to English.
 
 ## How It Works
 
@@ -20,12 +20,12 @@ This Chrome extension is built for a specific workflow: you open an article, tra
 - The extension saves the current page with the original article URL.
 - This keeps Readwise's native source-link behavior.
 
-### Fallback source URL
+### Fallback mode
 
 - Right click the extension icon.
-- Choose `Save with fallback source URL`.
-- If you configured a personal redirect service, the extension saves an `article`-scoped HTML snapshot with your redirect URL.
-- Otherwise it falls back to a synthetic local URL.
+- Choose `Save with fallback mode`.
+- If you configured a custom fallback mode, the extension saves an `article`-scoped HTML snapshot with that fallback source.
+- Otherwise it falls back to a placeholder local URL.
 - The saved Reader document includes an `Open original article` link at the top.
 
 Use the fallback only when the default save path collapses the translated content back to English.
@@ -45,7 +45,7 @@ Readwise can save rendered browser content, but in practice the final result can
   - Right click opens secondary actions.
 - Two save strategies
   - Original URL default
-  - Fallback source URL
+  - Fallback mode
 - Bilingual title support
   - If the page has visible English and translated Chinese headings, the saved title can include both.
 - Metadata extraction
@@ -104,12 +104,25 @@ Example `config.local.json`:
   "titlePrefix": "",
   "defaultTags": [],
   "captureMode": "html",
-  "redirectBaseUrl": "",
-  "redirectSigningSecret": ""
+  "redirectMode": "synthetic",
+  "redirectConfigs": {
+    "local-signing": {
+      "redirectBaseUrl": "",
+      "redirectSigningSecret": ""
+    },
+    "service-signing": {
+      "redirectServiceUrl": ""
+    },
+    "direct-redirect-unsafe": {
+      "redirectBaseUrl": ""
+    }
+  }
 }
 ```
 
 `config.local.json` is ignored by Git.
+
+The extension keeps each fallback mode's settings separate. Switching modes in Settings does not erase the values you already entered for the other modes.
 
 ## Use
 
@@ -123,24 +136,38 @@ Example `config.local.json`:
 ### If the saved Reader document becomes English-only
 
 1. Right click the extension icon.
-2. Choose `Save with fallback source URL`.
+2. Choose `Save with fallback mode`.
 3. Open the new Reader document.
 4. Use the `Open original article` link at the top when you need to jump back to the source page.
 
-## Optional Custom Redirect Domain
+## Optional Redirect Modes
 
-By default, fallback saves use a synthetic local URL.
+By default, fallback saves use a placeholder local URL.
 
-If you prefer a cleaner source link that can jump back to the original page, configure your own redirect service and then set both:
+If you want a cleaner source link that can jump back to the original page, you can switch the fallback mode in Settings:
 
-- `Redirect base URL`
-- `Redirect signing secret`
+- `Placeholder source URL (default)`
+  - No redirect setup
+  - Fallback uses a placeholder Reader source URL
+  - Use the in-document original link when you need the real article URL
+- `Extension-built redirect`
+  - Set `Redirect base URL`
+  - Set `Redirect signing secret`
+  - The extension builds the redirect URL locally
+- `Service-built redirect`
+  - Set `Redirect service URL`
+  - Your service returns the redirect URL
+- `Direct redirect (unsafe)`
+  - Set `Redirect base URL`
+  - No secret
+  - Your redirect endpoint must accept `/open?u=...` without signature checks
+  - Your domain becomes an open redirect
 
-## Custom Redirect Service with Cloudflare Workers
+## Cloudflare Worker for Local Signing
 
 This repository includes an optional Cloudflare Worker at [cloudflare/redirect-worker](./cloudflare/redirect-worker).
 
-Use this setup only if you want fallback saves to use your own domain instead of the default synthetic fallback.
+Use this setup only if you want the `Extension-built redirect` mode to use your own domain instead of the default placeholder fallback.
 
 Example target domain:
 
@@ -171,9 +198,10 @@ npm run deploy:redirect-worker
 ```
 
 9. Open the extension settings page.
-10. Set `Redirect base URL` to your deployed domain.
-11. Set the same `Redirect signing secret` in the extension settings.
-12. Reload the extension.
+10. In extension Settings, switch the fallback mode to `Extension-built redirect`.
+11. Set `Redirect base URL` to your deployed domain.
+12. Set the same `Redirect signing secret` in the extension settings.
+13. Reload the extension.
 
 The signing secret is intentionally local-only. Do not bundle it into a public extension package.
 
@@ -206,7 +234,7 @@ npm run test:e2e-save
 - [`background.js`](./background.js): save flow, API calls, menu actions, icon state
 - [`details.html`](./details.html): details page UI
 - [`options.html`](./options.html): settings page
-- [`cloudflare/redirect-worker`](./cloudflare/redirect-worker): optional personal redirect service for fallback source URLs
+- [`cloudflare/redirect-worker`](./cloudflare/redirect-worker): optional self-hosted Worker for Extension-built redirect mode
 - [`docs/requirements.md`](./docs/requirements.md): product requirements in Chinese
 - [`docs/cloudflare-redirect-setup.md`](./docs/cloudflare-redirect-setup.md): Cloudflare redirect service setup and rollout notes
 
@@ -214,4 +242,4 @@ npm run test:e2e-save
 
 - If the translation plugin only paints translated text visually and does not write it into the DOM, the extension cannot save the translated content reliably.
 - Some pages still depend on how Readwise handles URL canonicalization and HTML cleaning.
-- The redirect service is optional. If it is not configured, fallback saves use a synthetic local URL plus an in-document original-article link.
+- The redirect service is optional. If it is not configured, fallback saves use a placeholder local URL plus an in-document original-article link.
