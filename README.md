@@ -59,7 +59,9 @@ Readwise can save rendered browser content, but in practice the final result can
 
 ### Chrome Web Store
 
-The Chrome Web Store listing is currently under review.
+Install from the Chrome Web Store:
+
+- [Readwise Save Translated](https://chromewebstore.google.com/detail/readwise-save-translated/dldfhloleilmmicopaieohigjkkhnleg)
 
 ### GitHub Releases
 
